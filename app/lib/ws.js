@@ -287,23 +287,38 @@ class WSConnection extends EventEmitter {
     this.emit('message', isBinary ? payload : payload.toString('utf8'), isBinary);
   }
 
+  // Resolves the first frame's authenticate() call synchronously when it
+  // returns a plain boolean (the real case: a token compare), so a data
+  // frame the client sent right after the auth frame and that arrived in
+  // the same TCP chunk is not parsed before `authenticated` flips true.
+  // A Promise-returning authenticate() still works, just asynchronously.
   _handleFirstFrame(opcode, payload) {
     this.pendingFirstFrame = false;
     clearTimeout(this.authTimer);
     const text = opcode === OPCODE.TEXT ? payload.toString('utf8') : null;
-    Promise.resolve()
-      .then(() => this.authenticate(text))
-      .then((ok) => {
-        if (this.closed) return;
-        if (ok) {
-          this.authenticated = true;
-          this._startHeartbeat();
-          this.onConnectionCb(this, this.req);
-        } else {
-          this._failAuth();
-        }
-      })
-      .catch(() => this._failAuth());
+    let result;
+    try {
+      result = this.authenticate(text);
+    } catch {
+      this._failAuth();
+      return;
+    }
+    if (result && typeof result.then === 'function') {
+      result.then((ok) => this._completeAuth(ok)).catch(() => this._failAuth());
+    } else {
+      this._completeAuth(result);
+    }
+  }
+
+  _completeAuth(ok) {
+    if (this.closed) return;
+    if (ok) {
+      this.authenticated = true;
+      this._startHeartbeat();
+      this.onConnectionCb(this, this.req);
+    } else {
+      this._failAuth();
+    }
   }
 
   _failAuth() {
