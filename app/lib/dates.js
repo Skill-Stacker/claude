@@ -69,15 +69,17 @@ function toReferenceDateTime(now, zone) {
 function toDateTime(input, zone) {
   let dt;
   if (input && typeof input.isValid === 'boolean' && typeof input.setZone === 'function') {
-    dt = input;
+    dt = zone ? input.setZone(zone) : input;
   } else if (input instanceof Date) {
-    dt = DateTime.fromJSDate(input);
+    dt = zone ? DateTime.fromJSDate(input, { zone }) : DateTime.fromJSDate(input);
   } else if (typeof input === 'string') {
-    dt = DateTime.fromISO(input, { setZone: true });
+    // With an explicit zone, interpret a naive string as wall-clock time in
+    // that zone; a string with its own offset still converts correctly. With
+    // no zone given, keep whatever offset the string itself carries.
+    dt = zone ? DateTime.fromISO(input, { zone }) : DateTime.fromISO(input, { setZone: true });
   } else {
     throw new TypeError('expected a luxon DateTime, a Date, or an ISO string');
   }
-  if (zone) dt = dt.setZone(zone);
   return dt.setLocale('en-US');
 }
 
@@ -145,9 +147,15 @@ export function windowFor(text, { now, zone } = {}) {
   const ref = toReferenceDateTime(now, zone);
   const t = text.trim().toLowerCase();
 
-  const dayWindow = (dt, label) => ({
-    startUtc: dt.startOf('day').toUTC().toISO({ suppressMilliseconds: true }),
-    endUtc: dt.endOf('day').toUTC().toISO({ suppressMilliseconds: true }),
+  // luxon's endOf() lands on xx:59:59.999; drop the trailing millisecond so
+  // window edges read as a clean xx:59:59 in ISO output.
+  const endOfDay = (d) => d.endOf('day').set({ millisecond: 0 });
+  const endOfMonth = (d) => d.endOf('month').set({ millisecond: 0 });
+  const toIso = (d) => d.toUTC().toISO({ suppressMilliseconds: true });
+
+  const dayWindow = (d, label) => ({
+    startUtc: toIso(d.startOf('day')),
+    endUtc: toIso(endOfDay(d)),
     label,
   });
 
@@ -158,16 +166,16 @@ export function windowFor(text, { now, zone } = {}) {
   if (/\bnext\s+week\b/.test(t)) {
     const monday = ref.startOf('week').plus({ weeks: 1 });
     return {
-      startUtc: monday.toUTC().toISO({ suppressMilliseconds: true }),
-      endUtc: monday.plus({ days: 6 }).endOf('day').toUTC().toISO({ suppressMilliseconds: true }),
+      startUtc: toIso(monday),
+      endUtc: toIso(endOfDay(monday.plus({ days: 6 }))),
       label: 'next week',
     };
   }
   if (/\bthis\s+week\b/.test(t)) {
     const monday = ref.startOf('week');
     return {
-      startUtc: monday.toUTC().toISO({ suppressMilliseconds: true }),
-      endUtc: monday.plus({ days: 6 }).endOf('day').toUTC().toISO({ suppressMilliseconds: true }),
+      startUtc: toIso(monday),
+      endUtc: toIso(endOfDay(monday.plus({ days: 6 }))),
       label: 'this week',
     };
   }
@@ -175,8 +183,8 @@ export function windowFor(text, { now, zone } = {}) {
     const saturday = ref.startOf('week').plus({ days: 5 });
     const sunday = saturday.plus({ days: 1 });
     return {
-      startUtc: saturday.startOf('day').toUTC().toISO({ suppressMilliseconds: true }),
-      endUtc: sunday.endOf('day').toUTC().toISO({ suppressMilliseconds: true }),
+      startUtc: toIso(saturday.startOf('day')),
+      endUtc: toIso(endOfDay(sunday)),
       label: 'this weekend',
     };
   }
@@ -194,8 +202,8 @@ export function windowFor(text, { now, zone } = {}) {
     if (monthIdx + 1 < ref.month) year += 1;
     const start = DateTime.fromObject({ year, month: monthIdx + 1, day: 1 }, { zone }).startOf('day');
     return {
-      startUtc: start.toUTC().toISO({ suppressMilliseconds: true }),
-      endUtc: start.endOf('month').toUTC().toISO({ suppressMilliseconds: true }),
+      startUtc: toIso(start),
+      endUtc: toIso(endOfMonth(start)),
       label: capitalize(MONTHS[monthIdx]),
     };
   }
@@ -225,8 +233,10 @@ function minuteWord(minute) {
 // The core "clock face" phrase, with no morning/afternoon/night suffix.
 // standalone results (midnight, noon, quarter to midnight/noon) never take
 // a suffix; periodHour says which hour's period governs the suffix when one
-// is needed (the *upcoming* hour for "quarter to").
-function timeCore(hour, minute) {
+// is needed (the *upcoming* hour for "quarter to"). Pass includeOclock:false
+// to drop the "o'clock" marker on an exact hour, which reads better inside
+// a range ("from three to four in the afternoon", not "three o'clock to...").
+function timeCore(hour, minute, { includeOclock = true } = {}) {
   if (hour === 0 && minute === 0) return { phrase: 'midnight', standalone: true };
   if (hour === 12 && minute === 0) return { phrase: 'noon', standalone: true };
 
@@ -236,7 +246,10 @@ function timeCore(hour, minute) {
     if (nextHour === 12) return { phrase: 'quarter to noon', standalone: true };
     return { phrase: `quarter to ${hourWord(nextHour)}`, standalone: false, periodHour: nextHour };
   }
-  if (minute === 0) return { phrase: `${hourWord(hour)} o'clock`, standalone: false, periodHour: hour };
+  if (minute === 0) {
+    const phrase = includeOclock ? `${hourWord(hour)} o'clock` : hourWord(hour);
+    return { phrase, standalone: false, periodHour: hour };
+  }
   if (minute === 15) return { phrase: `quarter past ${hourWord(hour)}`, standalone: false, periodHour: hour };
   if (minute === 30) return { phrase: `half past ${hourWord(hour)}`, standalone: false, periodHour: hour };
 
@@ -310,8 +323,10 @@ export function spokenRange(startDt, endDt, { now, zone } = {}) {
     return `all day ${spokenDate(s, { now, zone })}`;
   }
 
-  const startCore = timeCore(s.hour, s.minute).phrase;
-  return `from ${startCore} to ${spokenTime(e, { zone })}`;
+  const startCore = timeCore(s.hour, s.minute, { includeOclock: false });
+  const endCore = timeCore(e.hour, e.minute, { includeOclock: false });
+  const endPhrase = endCore.standalone ? endCore.phrase : `${endCore.phrase} ${periodOf(endCore.periodHour)}`;
+  return `from ${startCore.phrase} to ${endPhrase}`;
 }
 
 export function spokenDuration(minutes) {
