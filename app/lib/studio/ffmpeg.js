@@ -198,11 +198,13 @@ export function run(exe, args, { onProgress, timeoutMs, signal, durationSec = 0,
       }
     };
     if (timeoutMs) {
+      // Deliberately not unref()'d: this is the safety net that guarantees
+      // a stuck ffmpeg process actually gets killed, so it must be able to
+      // keep the process alive on its own even if nothing else is pending.
       timer = setTimeout(() => {
         timedOut = true;
         child.kill('SIGKILL');
       }, timeoutMs);
-      if (timer.unref) timer.unref();
     }
 
     const onAbort = () => {
