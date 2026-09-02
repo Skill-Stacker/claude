@@ -165,6 +165,23 @@ async function main() {
     assert.ok(rowCount > 0, 'expected at least one netlog row');
     await screenshot(page, 'netlog');
 
+    log('opening Make a Picture');
+    await openFromStartMenu('Make a Picture');
+    await page.locator('#win-images').waitFor({ state: 'visible', timeout: WAIT });
+
+    log('opening Video Tools');
+    // video.js loads through the same guarded dynamic import as lamp.js and
+    // voice.js, so its Start menu row only shows up once that import
+    // settles; open the menu first and give the row a moment to appear
+    // in it, rather than assuming it is already there.
+    await page.locator('#startBtn').click();
+    await page.locator('#startmenu').waitFor({ state: 'visible', timeout: WAIT });
+    const videoRow = page.locator('#startmenu .smi', { hasText: 'Video Tools' });
+    await videoRow.waitFor({ state: 'visible', timeout: WAIT });
+    await videoRow.click();
+    await page.locator('#win-video').waitFor({ state: 'visible', timeout: WAIT });
+    await screenshot(page, 'studio');
+
     assert.deepEqual(consoleErrors, [], 'no console errors expected, got: ' + JSON.stringify(consoleErrors));
     assert.deepEqual(pageErrors, [], 'no page errors expected, got: ' + JSON.stringify(pageErrors));
 

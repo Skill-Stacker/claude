@@ -15,6 +15,11 @@ import * as netlogWindow from './windows/netlog.js';
 import * as settingsWindow from './windows/settings.js';
 import * as linksWindow from './windows/links.js';
 import * as monitorWindow from './windows/monitor.js';
+import * as imagesWindow from './windows/images.js';
+// windows/video.js belongs to the studio milestone and is still being
+// finished elsewhere; it is loaded further down with the same guarded
+// dynamic import used for lamp.js and voice.js, not a static import here,
+// so a missing or broken module never breaks the rest of the page.
 
 // ---------------------------------------------------------------------------
 // A tiny pub-sub for things windows tell each other (profile switched, mood
@@ -501,6 +506,7 @@ mount('netlog', netlogWindow);
 mount('settings', settingsWindow);
 mount('links', linksWindow);
 mount('monitor', monitorWindow);
+mount('images', imagesWindow);
 
 // ---------------------------------------------------------------------------
 // Desktop icons + start menu contents
@@ -516,44 +522,54 @@ const LAUNCHERS = [
   { id: 'settings', label: 'Settings', icon: 'G' },
   { id: 'links', label: 'Leaving This Machine', icon: 'L' },
   { id: 'monitor', label: 'Monitor', icon: 'V' },
+  { id: 'images', label: 'Make a Picture', icon: 'P' },
 ];
 
-function buildIcons() {
-  iconsEl.innerHTML = '';
-  for (const item of LAUNCHERS) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'icon';
-    btn.innerHTML = '<span class="icon-g" aria-hidden="true">' + item.icon + '</span><span>' + item.label + '</span>';
-    btn.addEventListener('click', () => windows[item.id] && windows[item.id].open());
-    iconsEl.appendChild(btn);
-  }
+// The start menu's launcher rows live in their own container so a launcher
+// added later (video.js, guarded below) can just append into it without
+// disturbing the "PROFILE" section that always stays last.
+const startMenuLaunchers = document.createElement('div');
+
+// Adds one icon and one start-menu row for a launcher, callable up front
+// for the built-in list above and again later for a module that only
+// showed up after a guarded dynamic import (video.js).
+function addLauncher(item) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'icon';
+  btn.innerHTML = '<span class="icon-g" aria-hidden="true">' + item.icon + '</span><span>' + item.label + '</span>';
+  btn.addEventListener('click', () => windows[item.id] && windows[item.id].open());
+  iconsEl.appendChild(btn);
+
+  const row = document.createElement('div');
+  row.className = 'smi';
+  row.tabIndex = 0;
+  row.innerHTML = '<span class="smi-ic" aria-hidden="true">' + item.icon + '</span>' + item.label;
+  const activate = () => {
+    windows[item.id] && windows[item.id].open();
+    setStartMenu(false);
+  };
+  row.addEventListener('click', activate);
+  row.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      activate();
+    }
+  });
+  startMenuLaunchers.appendChild(row);
 }
 
-function buildStartMenu() {
+function buildDesktopChrome() {
+  iconsEl.innerHTML = '';
   startMenuEl.innerHTML = '';
   const heading = document.createElement('div');
   heading.className = 'sm-hd';
   heading.textContent = 'SCOUT';
   startMenuEl.appendChild(heading);
-  for (const item of LAUNCHERS) {
-    const row = document.createElement('div');
-    row.className = 'smi';
-    row.tabIndex = 0;
-    row.innerHTML = '<span class="smi-ic" aria-hidden="true">' + item.icon + '</span>' + item.label;
-    const activate = () => {
-      windows[item.id] && windows[item.id].open();
-      setStartMenu(false);
-    };
-    row.addEventListener('click', activate);
-    row.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        activate();
-      }
-    });
-    startMenuEl.appendChild(row);
-  }
+  startMenuEl.appendChild(startMenuLaunchers);
+
+  for (const item of LAUNCHERS) addLauncher(item);
+
   const other = document.createElement('div');
   other.className = 'sm-hd';
   other.textContent = 'PROFILE';
@@ -576,8 +592,20 @@ function buildStartMenu() {
   startMenuEl.appendChild(switchRow);
 }
 
-buildIcons();
-buildStartMenu();
+buildDesktopChrome();
+
+// windows/video.js belongs to the studio milestone and is still being
+// finished elsewhere. Load it the same guarded way as lamp.js and voice.js:
+// a missing or broken module is logged and otherwise ignored, and its
+// launcher only appears once it has actually mounted.
+import('./windows/video.js')
+  .then((videoWindow) => {
+    mount('video', videoWindow);
+    addLauncher({ id: 'video', label: 'Video Tools', icon: 'F' });
+  })
+  .catch((err) => {
+    console.warn('Scout: video.js is not available yet', err);
+  });
 
 // ---------------------------------------------------------------------------
 // Engine pill (from /api/status.engine, kept current by SSE 'engine' events

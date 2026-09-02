@@ -432,6 +432,32 @@ export function wireMocks(app) {
     ctx.sendJson(200, { ok: true });
   });
 
+  // windows/images.js ("Make a Picture") and windows/video.js ("Video
+  // Tools") both call their own GET .../status right when they open, plus
+  // one more list each (the gallery, the studio folder's files and its job
+  // list); every one of those is mocked here too so opening either window
+  // never leaves an unmocked fetch behind for the browser to log as a
+  // failed resource load.
+  app.addRoute('GET', '/api/images/status', (req, res, ctx) => {
+    ctx.sendJson(200, {
+      binary: { present: false },
+      model: { present: false, note: 'No picture model is pinned yet.' },
+    });
+  });
+  app.addRoute('GET', '/api/images/gallery', (req, res, ctx) => {
+    ctx.sendJson(200, { images: [] });
+  });
+
+  app.addRoute('GET', '/api/video/status', (req, res, ctx) => {
+    ctx.sendJson(200, { present: false, canSetUp: true });
+  });
+  app.addRoute('GET', '/api/video/files', (req, res, ctx) => {
+    ctx.sendJson(200, { files: [] });
+  });
+  app.addRoute('GET', '/api/video/jobs', (req, res, ctx) => {
+    ctx.sendJson(200, { jobs: [] });
+  });
+
   // -- a few netlog entries so "What Scout Just Did" has something to show
 
   netlog.record({ kind: 'https', host: 'calendar.google.com', purpose: 'checked your calendar', bytes: 4096, ok: true });
