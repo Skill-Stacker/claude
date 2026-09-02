@@ -108,17 +108,54 @@ export function resolve(text, { now, zone } = {}) {
   if (!results || results.length === 0) return null;
 
   const result = results[0];
+  const hourCertain = result.start.isCertain('hour');
+  const dayCertain = result.start.isCertain('day') || result.start.isCertain('weekday');
+
+  // chrono marks "noon" and "midnight" as meridiem-uncertain internally
+  // (it only implies the AM/PM half, never assigns it), even though those
+  // two words are not actually ambiguous. Treat them as certain here so the
+  // household heuristic below never touches them.
+  const meridiemCertain = result.start.isCertain('meridiem') || /\b(noon|midnight)\b/i.test(result.text);
+
   const certain = {
-    hour: result.start.isCertain('hour'),
+    hour: hourCertain,
     minute: result.start.isCertain('minute'),
-    day: result.start.isCertain('day') || result.start.isCertain('weekday'),
+    day: dayCertain,
+    meridiem: meridiemCertain,
   };
 
   const hint = detectDaypartHint(result.text);
 
   let startDt = DateTime.fromJSDate(result.start.date(), { zone });
+
   if (hint && !certain.hour) {
     startDt = startDt.set({ hour: DAYPART_HOURS[hint], minute: 0, second: 0, millisecond: 0 });
+  } else if (certain.hour && !certain.meridiem) {
+    // A bare hour with no am, pm, or day-part word ("at 3", "at 7", "Tuesday
+    // at 3"): chrono always hands back the literal typed hour (1-12), read
+    // as AM. Rather than let that stand as a silent guess, apply the same
+    // household rule of thumb a person would: small hours (1 to 7) are more
+    // often meant as afternoon or evening, 8 to 11 are morning, and 12 is
+    // noon. The result stays flagged certain.meridiem: false either way, so
+    // a caller can read it back and let the user correct it.
+    const rawHour = result.start.get('hour');
+    const assumedHour = rawHour >= 1 && rawHour <= 7 ? rawHour + 12 : rawHour;
+
+    if (dayCertain) {
+      // An explicit day was already given (a weekday, "tomorrow", a date):
+      // that day stands regardless of which half of the day was guessed,
+      // so only the hour needs to change.
+      startDt = startDt.set({ hour: assumedHour });
+    } else {
+      // A bare time with no day at all relies on forwardDate to pick today
+      // versus tomorrow, but chrono made that choice using its own (AM)
+      // reading of the hour. Redo that choice under the assumed hour: keep
+      // today if it has not passed yet, otherwise roll to tomorrow.
+      const minute = result.start.get('minute') || 0;
+      let candidate = refDt.set({ hour: assumedHour, minute, second: 0, millisecond: 0 });
+      if (candidate < refDt) candidate = candidate.plus({ days: 1 });
+      startDt = candidate;
+    }
   }
 
   let endDt = null;
@@ -134,7 +171,7 @@ export function resolve(text, { now, zone } = {}) {
     allDay,
     certain,
     matched: result.text,
-    ...(hint ? { hint } : {}),
+    ...(hint && !certain.hour ? { hint } : {}),
   };
 }
 

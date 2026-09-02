@@ -100,17 +100,16 @@ export function mount(host) {
   let currentStream = null;
   let stoppedByUser = false;
 
-  function setMode(key) {
+  function setMode(key, { silent = false } = {}) {
     if (!MODES[key]) return;
     currentMode = key;
     for (const k of MODE_ORDER) modeButtons[k].classList.toggle('active', k === key);
     messages = [];
     msgsEl.innerHTML = '';
     input.placeholder = MODES[key].placeholder;
-    if (key !== 'scout') {
-      addSystemNote(MODES[key].welcome || MODES[key].label + ' mode is on.');
-    } else {
-      addSystemNote('New chat. Nothing from before carries over.');
+    if (!silent) {
+      if (key !== 'scout') addSystemNote(MODES[key].welcome || MODES[key].label + ' mode is on.');
+      else addSystemNote('New chat. Nothing from before carries over.');
     }
     input.focus();
   }
@@ -363,9 +362,6 @@ export function mount(host) {
           sources.push(data);
         },
         confirm(data) {
-          if (!assistantBubble && acc) {
-            // nothing pending, confirm can render on its own
-          }
           renderConfirmCard(data);
         },
         done() {
@@ -463,7 +459,7 @@ export function mount(host) {
     addSystemNote('Saved to your downloads.');
   });
 
-  setMode('scout');
+  setMode('scout', { silent: true });
   addSystemNote('Welcome to Scout. Ask anything, or hold the mic button to talk.');
 
   win.sendVoiceText = function sendVoiceText(text) {

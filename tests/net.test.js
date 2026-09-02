@@ -262,6 +262,8 @@ function tunnelingProxy() {
     const teardown = () => { upstream.destroy(); clientSocket.destroy(); };
     upstream.on('data', (chunk) => { if (!clientSocket.destroyed) clientSocket.write(chunk); });
     clientSocket.on('data', (chunk) => { if (!upstream.destroyed) upstream.write(chunk); });
+    upstream.on('end', () => clientSocket.end());
+    clientSocket.on('end', () => upstream.end());
     upstream.on('error', teardown);
     clientSocket.on('error', teardown);
     upstream.on('close', teardown);
