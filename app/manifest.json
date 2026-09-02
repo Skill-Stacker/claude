@@ -4,9 +4,21 @@
   "node": {
     "version": "24.20.0",
     "shasums": "https://nodejs.org/dist/v24.20.0/SHASUMS256.txt",
-    "win-x64": { "url": "https://nodejs.org/dist/v24.20.0/node-v24.20.0-win-x64.zip", "size": 37539751, "sha256": null },
-    "darwin-arm64": { "url": "https://nodejs.org/dist/v24.20.0/node-v24.20.0-darwin-arm64.tar.gz", "size": 52813331, "sha256": null },
-    "linux-x64": { "url": "https://nodejs.org/dist/v24.20.0/node-v24.20.0-linux-x64.tar.xz", "size": 31838904, "sha256": null }
+    "win-x64": {
+      "url": "https://nodejs.org/dist/v24.20.0/node-v24.20.0-win-x64.zip",
+      "size": 37539751,
+      "sha256": null
+    },
+    "darwin-arm64": {
+      "url": "https://nodejs.org/dist/v24.20.0/node-v24.20.0-darwin-arm64.tar.gz",
+      "size": 52813331,
+      "sha256": null
+    },
+    "linux-x64": {
+      "url": "https://nodejs.org/dist/v24.20.0/node-v24.20.0-linux-x64.tar.xz",
+      "size": 31838904,
+      "sha256": null
+    }
   },
   "engine": {
     "name": "llamafile",
@@ -23,14 +35,16 @@
       "url": "https://huggingface.co/bartowski/Qwen_Qwen3.5-4B-GGUF/resolve/main/Qwen_Qwen3.5-4B-Q6_K_L.gguf",
       "size": 3959316448,
       "sha256": "e98eccd3da7d25ccb1732306284fca332130a77e3f29ee05ea138ba8d86c805e",
-      "min_mb": 3500
+      "min_mb": 3500,
+      "magic": "GGUF"
     },
     "fallback": {
       "file": "qwen3.5-4b-q4_k_m.gguf",
       "url": "https://huggingface.co/bartowski/Qwen_Qwen3.5-4B-GGUF/resolve/main/Qwen_Qwen3.5-4B-Q4_K_M.gguf",
       "size": null,
       "sha256": null,
-      "min_mb": 2800
+      "min_mb": 2800,
+      "magic": "GGUF"
     }
   },
   "stt": {
@@ -63,8 +77,16 @@
   },
   "studio": {
     "ffmpeg": {
-      "win-x64": { "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/n9.0/ffmpeg-n9.0-latest-win64-gpl-9.0.zip", "size": null, "sha256": null },
-      "linux-x64": { "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/n9.0/ffmpeg-n9.0-latest-linux64-gpl-9.0.tar.xz", "size": null, "sha256": null },
+      "win-x64": {
+        "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/n9.0/ffmpeg-n9.0-latest-win64-gpl-9.0.zip",
+        "size": null,
+        "sha256": null
+      },
+      "linux-x64": {
+        "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/n9.0/ffmpeg-n9.0-latest-linux64-gpl-9.0.tar.xz",
+        "size": null,
+        "sha256": null
+      },
       "darwin-arm64": null
     },
     "sdcpp": {
