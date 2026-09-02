@@ -1,0 +1,64 @@
+# Builds the per-platform app zips and the installer page, then publishes
+# them as a GitHub Release named after package.json's version. Run it from
+# the Actions tab (Run workflow) or push a tag like v3.0.0-alpha.0.
+# The Start Buttons download stickos-app-<version>-<platform>.zip from
+# releases/download/v<version>/, so the tag and the file names must match
+# what build-release.mjs writes; both read package.json.
+
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Build the app zips
+        run: node tools/build-release.mjs
+
+      - name: Build the installer page
+        run: node tools/build-installer.mjs
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="v$VERSION"
+          node tools/release-notes.mjs dist/release.json > dist/NOTES.md
+          FLAGS=""
+          case "$VERSION" in
+            *-*) FLAGS="--prerelease" ;;
+          esac
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG exists, replacing its files"
+            gh release upload "$TAG" dist/*.zip dist/installer.html dist/release.json --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit "$TAG" --notes-file dist/NOTES.md --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$TAG" dist/*.zip dist/installer.html dist/release.json \
+              --target "$GITHUB_SHA" --title "StickOS $VERSION" --notes-file dist/NOTES.md $FLAGS \
+              --repo "$GITHUB_REPOSITORY"
+          fi
+          echo "Published https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG"
