@@ -29,99 +29,158 @@ function dt(iso) {
 describe('resolve()', () => {
   const cases = [
     {
+      // "3" has no am, pm, or day-part word, so the household meridiem
+      // heuristic guesses: 1 to 7 means afternoon or evening. certain.day
+      // comes from "tomorrow", so only the hour needs to change.
       text: 'tomorrow at 3',
-      start: '2026-09-03T03:00:00-04:00',
+      start: '2026-09-03T15:00:00-04:00',
       allDay: false,
-      certain: { hour: true, minute: true, day: true },
+      certain: { hour: true, minute: true, day: true, meridiem: false },
     },
     {
       text: 'tomorrow at 3pm',
       start: '2026-09-03T15:00:00-04:00',
       allDay: false,
-      certain: { hour: true, minute: true, day: true },
+      certain: { hour: true, minute: true, day: true, meridiem: true },
     },
     {
       text: 'next Tuesday at 3pm',
       start: '2026-09-08T15:00:00-04:00',
       allDay: false,
-      certain: { hour: true, minute: true, day: true },
+      certain: { hour: true, minute: true, day: true, meridiem: true },
     },
     {
       // No timezone offset given in the phrase itself, but the reference
-      // "now" is a Wednesday, so the coming Tuesday is September 8.
+      // "now" is a Wednesday, so the coming Tuesday is September 8. "3" is
+      // ambiguous (no am/pm), so the meridiem heuristic applies: 1 to 7
+      // means afternoon or evening, giving 15:00.
       text: 'Tuesday at 3',
-      start: '2026-09-08T03:00:00-04:00',
+      start: '2026-09-08T15:00:00-04:00',
       allDay: false,
-      certain: { hour: true, minute: true, day: true },
+      certain: { hour: true, minute: true, day: true, meridiem: false },
     },
     {
       text: 'in two weeks',
       start: '2026-09-16T14:00:00-04:00',
       allDay: true,
-      certain: { hour: false, minute: false, day: true },
+      certain: { hour: false, minute: false, day: true, meridiem: false },
     },
     {
       text: 'Friday morning',
       start: '2026-09-04T09:00:00-04:00',
       allDay: false,
-      certain: { hour: false, minute: false, day: true },
+      certain: { hour: false, minute: false, day: true, meridiem: false },
       hint: 'morning',
     },
     {
       text: 'Saturday afternoon',
       start: '2026-09-05T13:00:00-04:00',
       allDay: false,
-      certain: { hour: false, minute: false, day: true },
+      certain: { hour: false, minute: false, day: true, meridiem: false },
       hint: 'afternoon',
     },
     {
       text: 'tonight',
       start: '2026-09-02T19:00:00-04:00',
       allDay: false,
-      certain: { hour: false, minute: false, day: true },
+      certain: { hour: false, minute: false, day: true, meridiem: false },
       hint: 'tonight',
     },
     {
+      // "noon" is not actually ambiguous (unlike a bare "12"), so it counts
+      // as a certain meridiem even though chrono itself only implies it.
       text: 'noon tomorrow',
       start: '2026-09-03T12:00:00-04:00',
       allDay: false,
-      certain: { hour: true, minute: true, day: true },
+      certain: { hour: true, minute: true, day: true, meridiem: true },
     },
     {
       text: 'this weekend',
       start: '2026-09-05T12:00:00-04:00',
       allDay: true,
-      certain: { hour: false, minute: false, day: true },
+      certain: { hour: false, minute: false, day: true, meridiem: false },
     },
     {
       text: 'October 3rd',
       start: '2026-10-03T12:00:00-04:00',
       allDay: true,
-      certain: { hour: false, minute: false, day: true },
+      certain: { hour: false, minute: false, day: true, meridiem: false },
     },
     {
       text: 'October 3rd at 10am',
       start: '2026-10-03T10:00:00-04:00',
       allDay: false,
-      certain: { hour: true, minute: true, day: true },
+      certain: { hour: true, minute: true, day: true, meridiem: true },
     },
     {
       text: 'in 45 minutes',
       start: '2026-09-02T14:45:00-04:00',
       allDay: false,
-      certain: { hour: true, minute: true, day: true },
+      certain: { hour: true, minute: true, day: true, meridiem: true },
     },
     {
+      // "7" is ambiguous and falls in the 1 to 7 bucket (afternoon or
+      // evening), so it becomes 19:00. Since 19:00 today has not passed yet
+      // (reference is 14:00), it stays today rather than rolling forward
+      // the way chrono's own (wrong) AM guess would have.
       text: 'at 7',
-      start: '2026-09-03T07:00:00-04:00',
+      start: '2026-09-02T19:00:00-04:00',
       allDay: false,
-      certain: { hour: true, minute: true, day: false },
+      certain: { hour: true, minute: true, day: false, meridiem: false },
     },
     {
       text: 'next month',
       start: '2026-10-02T14:00:00-04:00',
       allDay: true,
-      certain: { hour: false, minute: false, day: false },
+      certain: { hour: false, minute: false, day: false, meridiem: false },
+    },
+    {
+      // "3" is ambiguous, no day given. 1 to 7 means afternoon or evening:
+      // 15:00. That has not passed yet today, so it stays today.
+      text: 'at 3',
+      start: '2026-09-02T15:00:00-04:00',
+      allDay: false,
+      certain: { hour: true, minute: true, day: false, meridiem: false },
+    },
+    {
+      // "9" is ambiguous and falls in the 8 to 11 bucket (morning), so it
+      // stays 09:00. That has already passed today, so it rolls forward.
+      text: 'at 9',
+      start: '2026-09-03T09:00:00-04:00',
+      allDay: false,
+      certain: { hour: true, minute: true, day: false, meridiem: false },
+    },
+    {
+      // "12" is ambiguous and means noon under the heuristic, so it stays
+      // 12:00. That has already passed today, so it rolls forward.
+      text: 'at 12',
+      start: '2026-09-03T12:00:00-04:00',
+      allDay: false,
+      certain: { hour: true, minute: true, day: false, meridiem: false },
+    },
+    {
+      // Explicit "pm": the heuristic never runs, certain.meridiem is true.
+      text: '3pm',
+      start: '2026-09-02T15:00:00-04:00',
+      allDay: false,
+      certain: { hour: true, minute: true, day: false, meridiem: true },
+    },
+    {
+      // Explicit "am": the heuristic never runs, certain.meridiem is true.
+      // 3am today has already passed, so it rolls forward to tomorrow.
+      text: '3am',
+      start: '2026-09-03T03:00:00-04:00',
+      allDay: false,
+      certain: { hour: true, minute: true, day: false, meridiem: true },
+    },
+    {
+      // "in the morning" is an explicit meridiem word to chrono (like
+      // "am"), so the heuristic never runs and the hour stays exactly what
+      // was said: 03:00, not shifted to 15:00 the way a bare "at 3" would.
+      text: 'at 3 in the morning',
+      start: '2026-09-03T03:00:00-04:00',
+      allDay: false,
+      certain: { hour: true, minute: true, day: false, meridiem: true },
     },
   ];
 
