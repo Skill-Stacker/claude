@@ -24,7 +24,7 @@ const repoRoot = path.resolve(__dirname, '..');
 
 const MARKER = '<!-- STICKOS_PAYLOAD_FILES -->';
 const MAX_BYTES = 500000;
-const EM_DASH = '—';
+const EM_DASH = '\u2014';
 
 export function parseArgs(argv) {
   const args = {
