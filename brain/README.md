@@ -49,7 +49,7 @@ New in the Open Brain layout:
 
 | Folder | What it is |
 |---|---|
-| `engine/` | The local search index toolkit: schema, indexer, search, embeddings. Run `python engine/brainctl.py`. |
+| `engine/` | The local search index toolkit: schema, indexer, search, embeddings, and the MCP server (`brain_mcp.py`). Run `python engine/brainctl.py`. |
 | `docs/` | How the migration mapped the old vault into this, how search works, and how to turn on semantic search. |
 | `skills/` | Plain-text skill packs an agent loads: how to recall from the index, how to capture a session. |
 | `_legacy-2026-09-02/` | The old top-level system docs, archived on migration day. Reference only, superseded by `AGENTS.md` and `docs/`. |
@@ -78,6 +78,14 @@ python engine/brainctl.py --section local-ai-master search "rag" # search only i
 ```
 
 Sections are configured in `engine/brain.config.json`.
+
+## Make an AI use it
+
+Register the MCP server (`engine/brain_mcp.py`) in any assistant, Claude Code,
+Claude Desktop, Cursor, or Hermes, and it gets `brain_search`, `brain_get`, and
+`brain_sections` as tools it can call. Agents with a terminal can also just run
+`python engine/brainctl.py search "query"`. Full per-client setup, Hermes
+included, is in `docs/use-from-an-ai.md`.
 
 ## Where the database lives
 
