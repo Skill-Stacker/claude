@@ -37,18 +37,26 @@ export default {
       return { type: 'clarify', question: 'Which message should this reply go to? Read it to me first, then ask for a reply.' };
     }
 
+    if (typeof gmailSession !== 'function') {
+      return { type: 'say', text: "I don't have Gmail connected yet. Open Settings to connect Gmail.", source: { kind: 'inbox', asOf } };
+    }
+    // The session factory (see app/lib/google/sync.js's createGmailSession)
+    // returns { creds, folders, withImap }: it already knows how to open its
+    // own IMAP connection, so this calls account.withImap rather than
+    // gmail.withImap(account.creds, ...) directly. `folders` can come back
+    // null for a profile that connected before folders were last discovered.
     const account = await gmailSession(profileId);
-    if (!account) {
+    if (!account || !account.folders) {
       return { type: 'say', text: "I don't have Gmail connected yet. Open Settings to connect Gmail.", source: { kind: 'inbox', asOf } };
     }
 
-    const draft = await gmail.withImap(account.creds, (client) =>
+    const draft = await account.withImap((client) =>
       gmail.createReplyDraft({
         db,
         profileId,
         client,
         folders: account.folders,
-        from: account.from,
+        from: account.creds.email,
         parent,
         subject: slots.subject,
         body: slots.body,

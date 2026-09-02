@@ -22,7 +22,7 @@
 import { DateTime } from 'luxon';
 
 import { INTENTS, registry, buildStage1SystemPrompt } from './intents/index.js';
-import { validateSlots, toolDefFor, googleConnection, NOT_CONNECTED_TEXT, LOCKED_TEXT } from './intents/shared.js';
+import { validateSlots, toolDefFor, googleConnection, NOT_CONNECTED_TEXT, LOCKED_TEXT, scopedDb } from './intents/shared.js';
 import { createConfirmManager } from './confirm.js';
 
 const STAGE1_SYSTEM_PROMPT = buildStage1SystemPrompt();
@@ -52,10 +52,20 @@ const MODE_PROMPTS = {
 // Small pure helpers, exported for direct testing.
 // ---------------------------------------------------------------------------
 
+// `settings` is app/boot.js's parsed settings.json (a plain object, see
+// payload/settings.json), which carries no zone field today and nothing
+// per-profile at all; a `getZone(profileId)` method or a flat `zone` string
+// are both accepted so this keeps working if either is added later, without
+// this module needing to change. Either way, an unset or unreadable setting
+// falls back to the machine's own zone, never to the model.
 export function resolveZone(settings, profileId) {
   try {
-    const z = settings && typeof settings.getZone === 'function' ? settings.getZone(profileId) : null;
-    if (z) return z;
+    if (settings && typeof settings.getZone === 'function') {
+      const z = settings.getZone(profileId);
+      if (z) return z;
+    } else if (settings && typeof settings.zone === 'string' && settings.zone) {
+      return settings.zone;
+    }
   } catch {
     // fall through to the machine zone
   }
@@ -108,6 +118,14 @@ export function buildStage1Messages(text, history) {
   return messages;
 }
 
+// Stage 1 in isolation: exported so it can be tested (and, if ever needed,
+// reused) without running the rest of dispatch(). Used internally by
+// dispatch() itself, below.
+export async function classifyIntent({ llm, text, history, signal }) {
+  const messages = buildStage1Messages(text, history);
+  return llm.intent({ messages, enumValues: INTENTS, signal });
+}
+
 function stage2UserContent(dateLine, text) {
   return `${dateLine}\n\n${text}`;
 }
@@ -146,8 +164,8 @@ export function createSessionStore() {
 
 export function createBrain(deps) {
   const {
-    db, llm, calendar, gmail, gmailSession, contacts, dates, scrub, memory, profiles,
-    lockManager, verifyPin, settings, now: nowFn = () => new Date(),
+    db, llm: llmSource, calendar, gmail, gmailSession, contacts, dates, scrub, memory, profiles,
+    lockManager, verifyPin, settings, paths: defaultPaths, now: nowFn = () => new Date(),
   } = deps;
 
   const confirmManager = createConfirmManager({ db, gmail, gmailSession, verifyPin });
@@ -158,6 +176,17 @@ export function createBrain(deps) {
     return DateTime.fromJSDate(jsDate, { zone });
   }
 
+  // app/boot.js wires the engine's llm client in lazily, as { current() },
+  // because it cannot exist until the engine has actually started; a direct
+  // { chat, intent, warm } object (what tests, and llm.js's own createLlm(),
+  // hand over) is also accepted as-is. Either way this resolves to the real
+  // client, or null while the engine is still starting up.
+  function resolveLlm() {
+    if (!llmSource) return null;
+    if (typeof llmSource.current === 'function') return llmSource.current();
+    return llmSource;
+  }
+
   async function recordExchange(profileDirPath, text, assistantText) {
     try {
       memory.appendExchange(profileDirPath, { user: text, assistant: assistantText });
@@ -166,7 +195,7 @@ export function createBrain(deps) {
     }
   }
 
-  async function runPlainChat({ systemPrompt, history, text, emit, signal, profileDirPath, startedAt = Date.now() }) {
+  async function runPlainChat({ llm, systemPrompt, history, text, emit, signal, profileDirPath, startedAt = Date.now() }) {
     const messages = [{ role: 'system', content: systemPrompt }];
     for (const turn of history || []) {
       if (turn && (turn.role === 'user' || turn.role === 'assistant') && typeof turn.content === 'string') {
@@ -198,14 +227,23 @@ export function createBrain(deps) {
     if (profileDirPath) await recordExchange(profileDirPath, text, full);
   }
 
-  async function dispatch({ profileId, text, mode = 'scout', history = [], paths, signal, onEvent = () => {} } = {}) {
+  async function dispatch({ profileId, text, mode = 'scout', history = [], paths: pathsArg, signal, onEvent = () => {} } = {}) {
     const emit = (type, data) => { try { onEvent(type, data); } catch { /* a bad listener must not break dispatch */ } };
     const startedAt = Date.now();
+    const paths = pathsArg || defaultPaths;
 
     const profile = profiles.getProfile(db, profileId);
     if (!profile) {
       emit('error', { kind: 'profile', message: 'Unknown profile.' });
       emit('done', { finishReason: 'error', elapsedMs: Date.now() - startedAt });
+      return;
+    }
+
+    const llm = resolveLlm();
+    if (!llm) {
+      const notReady = "Scout's brain isn't warmed up yet. Give it a moment and try again.";
+      emit('delta', { content: notReady });
+      emit('done', { finishReason: 'not_ready', elapsedMs: Date.now() - startedAt });
       return;
     }
 
@@ -222,7 +260,7 @@ export function createBrain(deps) {
       const template = MODE_PROMPTS[mode] || MODE_PROMPTS.message;
       const systemPrompt = template.replaceAll('{{name}}', profile.name);
       try {
-        await runPlainChat({ systemPrompt, history, text, emit, signal, profileDirPath, startedAt });
+        await runPlainChat({ llm, systemPrompt, history, text, emit, signal, profileDirPath, startedAt });
       } catch (err) {
         emit('error', { kind: 'engine', message: String((err && err.message) || err) });
         emit('done', { finishReason: 'error', elapsedMs: Date.now() - startedAt });
@@ -232,8 +270,7 @@ export function createBrain(deps) {
 
     try {
       // -- Stage 1: intent classification ------------------------------------
-      const stage1Messages = buildStage1Messages(text, history);
-      const intentKey = await llm.intent({ messages: stage1Messages, enumValues: INTENTS, signal });
+      const intentKey = await classifyIntent({ llm, text, history, signal });
       emit('intent', { intent: intentKey });
 
       const def = registry[intentKey] || registry.chat;
@@ -262,6 +299,7 @@ export function createBrain(deps) {
       if (intentKey === 'chat') {
         const systemPrompt = memory.buildSystemPrompt({ persona, memory: memoryText, name: profile.name });
         await runPlainChat({
+          llm,
           systemPrompt,
           history,
           text: `${dateLine}\n\n${text}`,
@@ -305,7 +343,7 @@ export function createBrain(deps) {
 
       // -- Stage 3: the deterministic action -----------------------------------
       const ctx = {
-        db, calendar, gmail, gmailSession, contacts, dates, scrub,
+        db: scopedDb(db, profileId), calendar, gmail, gmailSession, contacts, dates, scrub,
         profileId, profile, zone, now, slots, utterance: text, session,
       };
       const outcome = await def.run(ctx);
@@ -391,10 +429,13 @@ export function createBrain(deps) {
   // POST /api/session/new: distill the current session into memory.md with a
   // model summarizer, start a new session file, and re-warm the cache prefix
   // (persona + fresh memory) so the next turn's first request is a cache hit.
-  async function distillSession({ profileId, paths }) {
+  async function distillSession({ profileId, paths: pathsArg }) {
+    const paths = pathsArg || defaultPaths;
     const profile = profiles.getProfile(db, profileId);
     if (!profile) throw new Error('profile not found');
     const profileDirPath = profiles.profileDir(paths.profiles, profile);
+
+    const llm = resolveLlm();
 
     const summarize = async (transcript) => {
       const result = await llm.chat({
@@ -408,15 +449,17 @@ export function createBrain(deps) {
       return result.content;
     };
 
-    const outcome = await memory.distill(profileDirPath, summarize);
+    const outcome = llm ? await memory.distill(profileDirPath, summarize) : { distilled: false };
 
-    const persona = memory.loadPersona();
-    const memoryText = memory.loadMemory(profileDirPath);
-    const systemPrompt = memory.buildSystemPrompt({ persona, memory: memoryText, name: profile.name });
-    try {
-      await llm.warm([{ role: 'system', content: systemPrompt }]);
-    } catch {
-      // warming is an optimization, never a hard requirement
+    if (llm) {
+      const persona = memory.loadPersona();
+      const memoryText = memory.loadMemory(profileDirPath);
+      const systemPrompt = memory.buildSystemPrompt({ persona, memory: memoryText, name: profile.name });
+      try {
+        await llm.warm([{ role: 'system', content: systemPrompt }]);
+      } catch {
+        // warming is an optimization, never a hard requirement
+      }
     }
 
     session.clear(profileId);

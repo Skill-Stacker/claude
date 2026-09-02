@@ -31,7 +31,16 @@ export default {
     const nowUtc = now.toUTC().toISO({ suppressMilliseconds: true });
     const found = calendar.nextEvent(db, profileId, nowUtc, { hint: slots.hint || undefined });
     const asOf = calendar.lastChecked(db);
-    const data = found
+
+    // calendar.nextEvent falls back to the soonest event when a hint is
+    // given but nothing overlaps it, flagged by matchedByHint: false. That
+    // fallback event is not what was asked about, so it must not be
+    // reported as a match: doing so would fabricate an answer to exactly
+    // the kind of "did you already put X on my calendar" question this
+    // intent also has to handle honestly.
+    const isRealMatch = found && (!slots.hint || found.matchedByHint);
+
+    const data = isRealMatch
       ? `Next matching event:\n1. ${describeEvent(dates, found, { now, zone })}`
       : slots.hint
         ? `No upcoming event matching "${slots.hint}" was found on the calendar.`

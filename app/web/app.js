@@ -353,6 +353,13 @@ document.addEventListener('keydown', (event) => {
 
 function setStartMenu(show) {
   startMenuEl.hidden = !show;
+  if (show) {
+    // Always draw above every window, the same way a real Start menu would,
+    // no matter how many windows have been focused (and so raised their own
+    // z-index) since the page loaded.
+    zTop += 1;
+    startMenuEl.style.zIndex = String(zTop);
+  }
   startBtn.setAttribute('aria-expanded', String(show));
   topbarBrand.setAttribute('aria-expanded', String(show));
 }

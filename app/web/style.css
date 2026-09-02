@@ -26,6 +26,16 @@
   box-sizing: border-box;
 }
 
+/* The `hidden` attribute has the same specificity as an author class
+   selector, so without this a rule like `.win { display: flex }` would
+   otherwise win the cascade and keep an element visible even once its
+   `hidden` property is set. This keeps `hidden` authoritative everywhere
+   on the page, for every element toggled that way in app.js and the
+   window modules. */
+[hidden] {
+  display: none !important;
+}
+
 html, body {
   height: 100%;
   margin: 0;
@@ -108,19 +118,6 @@ ul, ol {
 .boot-sub {
   color: var(--muted);
   font-size: 14px;
-}
-.boot-bar {
-  width: 260px;
-  height: 6px;
-  border-radius: 99px;
-  background: rgba(255, 255, 255, 0.1);
-  overflow: hidden;
-}
-.boot-bar i {
-  display: block;
-  height: 100%;
-  width: 40%;
-  background: var(--grad);
 }
 .boot-log {
   color: var(--muted);
@@ -723,13 +720,8 @@ ul, ol {
   font-size: 11px;
   color: var(--muted);
 }
-.source-chips {
-  align-self: flex-start;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
 .source-chip {
+  align-self: flex-start;
   font-size: 11px;
   color: var(--muted);
   background: rgba(255, 255, 255, 0.05);

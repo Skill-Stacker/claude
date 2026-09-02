@@ -90,8 +90,57 @@
       "darwin-arm64": null
     },
     "sdcpp": {
-      "_comment": "Pin one master-<n>-<hash> tag before Studio phase C ships.",
-      "tag": null
+      "_comment": "Pinned from https://github.com/leejet/stable-diffusion.cpp/releases. sha256 null means self-pin, same rule as everywhere else in this file. Every asset here is a .zip holding sd-server/sd-cli plus the shared libraries (.so/.dll) they need alongside them in the same folder; extract the whole archive, not just the two binaries. model.sd15.url stays null (unset) until it is checked against a real download from this machine; the UI must say plainly that no model is pinned rather than guessing a huggingface.co URL.",
+      "tag": "master-841-6b3edaa",
+      "commit": "6b3edaa",
+      "binaries": {
+        "sdServer": "sd-server",
+        "sdCli": "sd-cli"
+      },
+      "assets": {
+        "win-cpu-x64": {
+          "platform": "win32",
+          "arch": "x64",
+          "gpu": "cpu",
+          "url": "https://github.com/leejet/stable-diffusion.cpp/releases/download/master-841-6b3edaa/sd-master-6b3edaa-bin-win-cpu-x64.zip",
+          "size": 24084786,
+          "sha256": null
+        },
+        "win-vulkan-x64": {
+          "platform": "win32",
+          "arch": "x64",
+          "gpu": "vulkan",
+          "url": "https://github.com/leejet/stable-diffusion.cpp/releases/download/master-841-6b3edaa/sd-master-6b3edaa-bin-win-vulkan-x64.zip",
+          "size": 38834787,
+          "sha256": null
+        },
+        "darwin-arm64": {
+          "platform": "darwin",
+          "arch": "arm64",
+          "gpu": "cpu",
+          "url": "https://github.com/leejet/stable-diffusion.cpp/releases/download/master-841-6b3edaa/sd-master-6b3edaa-bin-Darwin-macOS-26.5.2-arm64.zip",
+          "size": 49954861,
+          "sha256": null
+        },
+        "linux-cpu-x64": {
+          "platform": "linux",
+          "arch": "x64",
+          "gpu": "cpu",
+          "url": "https://github.com/leejet/stable-diffusion.cpp/releases/download/master-841-6b3edaa/sd-master-6b3edaa-bin-Linux-Ubuntu-24.04-x86_64.zip",
+          "size": 32984499,
+          "sha256": null
+        }
+      },
+      "model": {
+        "sd15": {
+          "id": "sd15",
+          "label": "Stable Diffusion 1.5 (small)",
+          "url": null,
+          "size": null,
+          "sha256": null,
+          "notes": "set after a live check"
+        }
+      }
     }
   }
 }

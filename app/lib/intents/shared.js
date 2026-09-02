@@ -79,6 +79,38 @@ export function toolDefFor(def) {
 }
 
 // ---------------------------------------------------------------------------
+// Per-profile db scoping for calendar.lastChecked / gmail's 'lastChecked'
+// key.
+//
+// calendar.js and gmail.js each keep exactly one sync_state row for "when
+// was this last checked" (calendar:lastChecked, gmail:lastChecked), with no
+// profile_id column: fine for the sync side, which app/lib/google/sync.js
+// scopes itself with its own scopedDb(db, profileId) (see that file's
+// header comment) before ever calling into calendar.js or gmail.js. Brain
+// and the intent modules read those same two functions/keys from the other
+// side of that boundary, so they need the identical `p<id>:` prefix to land
+// on the same row sync.js writes; this is a small, dependency-free mirror
+// of that same convention (importing sync.js itself here would drag in
+// imapflow, nodemailer and node-ical for no reason). Every table query
+// (run/get/all/transaction) still passes straight through to the real db.
+// ---------------------------------------------------------------------------
+
+export function scopedDb(db, profileId) {
+  const prefix = `p${profileId}:`;
+  return {
+    raw: db.raw,
+    run: (sql, params) => db.run(sql, params),
+    get: (sql, params) => db.get(sql, params),
+    all: (sql, params) => db.all(sql, params),
+    exec: (sql) => db.exec(sql),
+    transaction: (fn) => db.transaction(fn),
+    close: () => db.close(),
+    getState: (key, fallback) => db.getState(prefix + key, fallback),
+    setState: (key, value) => db.setState(prefix + key, value),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Connectivity and lock gating (shared by brain.js, kept here so every
 // intent module and its tests can reach the exact same definition of
 // "connected").

@@ -197,18 +197,16 @@ export function mount(host) {
     bubble.insertAdjacentElement('afterend', bar);
   }
 
-  function renderSourceChips(sources) {
-    if (!sources || !sources.length) return;
-    const row = document.createElement('div');
-    row.className = 'source-chips';
-    for (const s of sources) {
-      const chip = document.createElement('span');
-      chip.className = 'source-chip';
-      const label = SOURCE_LABEL[s.kind] || s.kind || 'a source';
-      chip.textContent = label + (s.asOf ? ', ' + formatAsOf(s.asOf) : '');
-      row.appendChild(chip);
-    }
-    msgsEl.appendChild(row);
+  // Rendered the moment a source event arrives, which is usually while
+  // "still thinking" is still showing: Scout looked something up before it
+  // has anything to say yet, and the chip says so right away.
+  function renderSourceChip(source) {
+    if (!source) return;
+    const chip = document.createElement('span');
+    chip.className = 'source-chip';
+    const label = SOURCE_LABEL[source.kind] || source.kind || 'a source';
+    chip.textContent = label + (source.asOf ? ', ' + formatAsOf(source.asOf) : '');
+    msgsEl.appendChild(chip);
     scrollToEnd();
   }
 
@@ -335,7 +333,6 @@ export function mount(host) {
 
     let assistantBubble = null;
     let acc = '';
-    let sources = [];
     let gotError = false;
     const isVoice = !!opts.voice;
 
@@ -359,14 +356,13 @@ export function mount(host) {
           scrollToEnd();
         },
         source(data) {
-          sources.push(data);
+          renderSourceChip(data);
         },
         confirm(data) {
           renderConfirmCard(data);
         },
         done() {
           thinking.remove();
-          if (sources.length) renderSourceChips(sources);
           if (acc) {
             messages.push({ role: 'assistant', content: acc });
             if (assistantBubble) attachMessageActions(assistantBubble);

@@ -38,8 +38,6 @@ const ENGINE_GUIDANCE = {
 
 export function run(host, { bootEl, onDone }) {
   const sub = bootEl.querySelector('#bootSub');
-  const bar = bootEl.querySelector('#bootBar');
-  const barFill = bootEl.querySelector('#bootBarFill');
   const log = bootEl.querySelector('#bootLog');
   const steps = bootEl.querySelector('#bootSteps');
   const note = bootEl.querySelector('#bootNote');
@@ -122,7 +120,6 @@ export function run(host, { bootEl, onDone }) {
   function renderFirstrun(data) {
     if (!data) return;
     const phase = data.phase;
-    bar.hidden = true;
     retryBtn.hidden = true;
 
     if (phase === 'preflight') {

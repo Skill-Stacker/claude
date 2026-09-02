@@ -9,6 +9,7 @@
 import * as dates from './dates.js';
 import { listEvents, lastChecked } from './google/calendar.js';
 import { listOpen } from './reminders.js';
+import { scopedDb } from './intents/shared.js';
 
 // dates.js does not export an hour-of-day helper directly usable here, so
 // this reads the hour the same way dates.spokenTime does: through a plain
@@ -32,17 +33,23 @@ function countPhrase(n, singular, plural) {
 }
 
 export function buildBrief({ db, profileId, now = new Date(), zone = 'UTC' }) {
-  const window = dates.windowFor('today', { now, zone });
-  const events = listEvents(db, profileId, window.startUtc, window.endUtc);
+  // calendar.lastChecked reads a sync_state row with no profile_id column of
+  // its own (see app/lib/intents/shared.js's scopedDb for why); every other
+  // read here is a plain profile_id-scoped table query, safe on either db,
+  // so the scoped wrapper is used throughout for one consistent `db`.
+  const sdb = scopedDb(db, profileId);
 
-  const unread = db.all(
+  const window = dates.windowFor('today', { now, zone });
+  const events = listEvents(sdb, profileId, window.startUtc, window.endUtc);
+
+  const unread = sdb.all(
     'SELECT * FROM messages WHERE profile_id = ? AND is_unread = 1 ORDER BY date_utc DESC',
     [profileId],
   );
 
-  const reminders = listOpen(db, profileId);
+  const reminders = listOpen(sdb, profileId);
 
-  const asOf = lastChecked(db);
+  const asOf = lastChecked(sdb);
   const greeting = buildGreeting(now, zone);
 
   const parts = [];
