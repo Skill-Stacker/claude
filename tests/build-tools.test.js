@@ -184,7 +184,7 @@ describe('build-installer', () => {
   });
 
   test('runGates rejects an em dash and an oversized page', () => {
-    assert.throws(() => installer.runGates('plain — text'), /em dash/);
+    assert.throws(() => installer.runGates('plain \u2014 text'), /em dash/);
     const big = '<script id="x">1</script>' + 'x'.repeat(600000);
     assert.throws(() => installer.runGates(big), /byte cap/);
   });

@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 const root = join(fileURLToPath(import.meta.url), '..', '..');
 const SCAN_DIRS = ['app', 'payload', 'tools', 'tests'];
 const TEXT_EXT = new Set(['.js', '.mjs', '.html', '.css', '.md', '.json', '.txt', '.bat', '.command', '.sh', '.sql', '.ics']);
-const EM_DASH = '—';
+const EM_DASH = '\u2014';
 
 function* walk(dir) {
   for (const name of readdirSync(dir)) {

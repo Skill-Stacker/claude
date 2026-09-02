@@ -229,7 +229,7 @@ describe('payload/ (all files)', () => {
       const text = readRaw(payloadPath(name));
       assert.ok(!text.includes('<?'), `found "<?" in ${name} (the installer page is served as PHP and will execute it)`);
       assert.ok(!text.includes('?>'), `found "?>" in ${name} (the installer page is served as PHP and will execute it)`);
-      assert.ok(!text.includes('—'), `found an em dash (U+2014) in ${name}`);
+      assert.ok(!text.includes('\u2014'), `found an em dash (U+2014) in ${name}`);
     });
   }
 });

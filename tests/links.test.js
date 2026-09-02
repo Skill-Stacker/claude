@@ -144,7 +144,7 @@ test('describeTemplate: timed event sentence', () => {
   });
   assert.match(text, /^Add 'Dentist' on .+ at .+ in Google Calendar, then press Save\.$/);
   assert.ok(text.includes('Maple Street Dental'));
-  assert.ok(!text.includes('—'), 'no em dash');
+  assert.ok(!text.includes('\u2014'), 'no em dash');
 });
 
 test('describeTemplate: all-day event sentence has no time', () => {
