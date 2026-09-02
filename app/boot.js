@@ -81,11 +81,21 @@ export async function wire(app) {
   const llmMod = await tryImport('./lib/llm.js', missing);
   let engine = null;
   let llm = null;
-  if (engineMod && downloads) {
+  // Dev mode: STICKOS_FAKE_ENGINE=1 runs tools/fake-engine.mjs in place of
+  // llamafile and skips every download, so the page and the dispatch can be
+  // exercised on a machine with no model. Never set by the launchers.
+  const fakeEngine = !!process.env.STICKOS_FAKE_ENGINE;
+  if (engineMod && (downloads || fakeEngine)) {
+    const fakePath = join(paths.app, '..', 'tools', 'fake-engine.mjs');
+    const cp = fakeEngine ? await import('node:child_process') : null;
     engine = engineMod.createEngine({
       paths,
       manifest,
-      verify: (path, spec) => downloads.verifyAsset(path, spec),
+      verify: fakeEngine ? async () => ({ ok: true, sha256: 'fake' }) : (path, spec) => downloads.verifyAsset(path, spec),
+      spawn: fakeEngine ? (cmd, args, opts) => cp.spawn(process.execPath, [fakePath, ...args], opts) : undefined,
+      execFile: fakeEngine
+        ? (cmd, args, opts, cb) => cp.execFile(process.execPath, [fakePath, ...(args || [])], opts, cb)
+        : undefined,
       bus,
       log,
     });
@@ -115,7 +125,10 @@ export async function wire(app) {
   // First run: downloads, verification, GPU probe, engine start, voice warm-up.
   const firstRunMod = await tryImport('./lib/firstrun.js', missing);
   let firstRun = null;
-  if (firstRunMod && downloads && engine) {
+  if (fakeEngine && engine) {
+    log('dev mode: fake engine, no downloads');
+    engine.start({ modelPath: join(paths.models, 'fake.gguf') }).catch((err) => log('fake engine failed:', err.message));
+  } else if (firstRunMod && downloads && engine) {
     firstRun = firstRunMod.createFirstRun({
       paths,
       manifest,
