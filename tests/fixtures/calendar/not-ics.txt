@@ -1,0 +1,5 @@
+<!DOCTYPE html>
+<html>
+<head><title>Sign in - Google Accounts</title></head>
+<body>This link needs you to sign in. It is not a valid calendar address.</body>
+</html>
