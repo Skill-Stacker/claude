@@ -185,6 +185,72 @@ export async function startServer({ baseDir, port: portOverride } = {}) {
     micHandler = typeof handler === 'function' ? handler : defaultMicHandler;
   }
 
+  // -- route registry and status providers --------------------------------
+  // Feature modules (brain, voice, connectors, studio) register their routes
+  // from their own files through app.addRoute(); app/boot.js wires them. The
+  // built-in routes below stay in this file. Handlers get (req, res, ctx).
+  const routes = [];
+  function addRoute(method, path, handler, { prefix = false } = {}) {
+    if (typeof handler !== 'function') throw new Error('addRoute needs a handler');
+    routes.push({ method: (method || 'GET').toUpperCase(), path, handler, prefix });
+  }
+  const statusProviders = new Map();
+  function setStatus(name, fn) {
+    if (typeof fn === 'function') statusProviders.set(name, fn);
+  }
+  function collectStatus() {
+    const out = {};
+    for (const [name, fn] of statusProviders) {
+      try {
+        out[name] = fn();
+      } catch (err) {
+        out[name] = { error: String((err && err.message) || err) };
+      }
+    }
+    return out;
+  }
+  let api = null; // the object startServer() returns; handlers reach shared state through ctx.app
+  function makeCtx(req, res, pathname) {
+    return {
+      app: api,
+      pathname,
+      query: new URL(req.url || '/', origin).searchParams,
+      token,
+      bus,
+      netlog,
+      paths,
+      origin,
+      async readJson(limit = BODY_LIMIT) {
+        const raw = await readBody(req, limit);
+        if (!raw.length) return null;
+        return JSON.parse(raw.toString('utf8'));
+      },
+      sendJson: (status, body) => sendJson(res, status, body),
+      sseStart() {
+        res.writeHead(200, {
+          'Content-Type': 'text/event-stream; charset=utf-8',
+          'Cache-Control': 'no-store',
+          Connection: 'keep-alive',
+          'X-Accel-Buffering': 'no',
+        });
+        res.write(': open\n\n');
+        return {
+          send(type, data) {
+            if (res.writableEnded || res.destroyed) return false;
+            res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
+            return true;
+          },
+          end() {
+            if (!res.writableEnded) res.end();
+          },
+          get closed() {
+            return res.writableEnded || res.destroyed;
+          },
+        };
+      },
+    };
+  }
+
   // -- request handling ---------------------------------------------------
 
   function guardCommon(req, res) {
@@ -260,6 +326,24 @@ export async function startServer({ baseDir, port: portOverride } = {}) {
       return sendJson(res, 401, { error: 'unauthorized' });
     }
 
+    for (const r of routes) {
+      if (r.method !== 'ANY' && r.method !== method) continue;
+      if (r.prefix ? !pathname.startsWith(r.path) : pathname !== r.path) continue;
+      try {
+        await r.handler(req, res, makeCtx(req, res, pathname));
+      } catch (err) {
+        if (!res.headersSent) {
+          sendJson(res, err && err.statusCode ? err.statusCode : 500, {
+            error: 'internal',
+            message: String((err && err.message) || err),
+          });
+        } else if (!res.writableEnded) {
+          res.end();
+        }
+      }
+      return;
+    }
+
     if (pathname === '/' && method !== 'POST') {
       return serveIndex(req, res);
     }
@@ -271,8 +355,9 @@ export async function startServer({ baseDir, port: portOverride } = {}) {
         port,
         pid: process.pid,
         uptime: (Date.now() - startedAt) / 1000,
-        engine: null, // filled in once engine.js (M2) is wired in
-        voice: null, // filled in once the voice agent (M5) is wired in
+        engine: null,
+        voice: null,
+        ...collectStatus(), // engine, voice, downloads, profile: filled by modules via setStatus
       });
     }
 
@@ -363,7 +448,7 @@ export async function startServer({ baseDir, port: portOverride } = {}) {
     }
   }
 
-  return {
+  api = {
     server,
     port,
     token,
@@ -372,11 +457,15 @@ export async function startServer({ baseDir, port: portOverride } = {}) {
     close,
     registerShutdown,
     onMicConnection,
+    addRoute,
+    setStatus,
+    collectStatus,
     alreadyRunning: false,
     paths,
     origin,
     version,
   };
+  return api;
 }
 
 // ---------------------------------------------------------------------------
@@ -390,6 +479,17 @@ export async function main() {
     console.log(`ALREADY_RUNNING ${app.url}`);
     process.exit(0);
     return;
+  }
+
+  // app/boot.js is the composition root: it opens the database and wires the
+  // engine, brain, voice, connectors and studio modules onto this server.
+  // The server runs without it (tests, early milestones).
+  try {
+    const boot = await import('./boot.js');
+    if (typeof boot.wire === 'function') await boot.wire(app);
+  } catch (err) {
+    const missing = err && err.code === 'ERR_MODULE_NOT_FOUND' && /boot\.js/.test(String(err.message));
+    if (!missing) throw err;
   }
 
   console.log(`READY http://127.0.0.1:${app.port}/`);
