@@ -334,6 +334,7 @@ export function mount(host) {
     let assistantBubble = null;
     let acc = '';
     let gotError = false;
+    let gotConfirm = false;
     const isVoice = !!opts.voice;
 
     currentStream = host.api.postSse(
@@ -359,6 +360,7 @@ export function mount(host) {
           renderSourceChip(data);
         },
         confirm(data) {
+          gotConfirm = true;
           renderConfirmCard(data);
         },
         done() {
@@ -369,7 +371,7 @@ export function mount(host) {
             if (isVoice && host.stickos.voice && typeof host.stickos.voice.speak === 'function') {
               host.stickos.voice.speak(acc);
             }
-          } else if (!assistantBubble && !gotError) {
+          } else if (!assistantBubble && !gotError && !gotConfirm) {
             showFriendlyError({ message: 'Scout did not have anything to say back that time. Try again, or ask it a different way.' });
           }
           finishStream();

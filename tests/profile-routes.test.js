@@ -131,6 +131,24 @@ describe('GET/POST /api/profiles', () => {
     }
   });
 
+  test('a second profile with the same name gets a plain 409, not a 500', async () => {
+    const { app } = await setup();
+    try {
+      const first = await post(app, '/api/profiles', { name: 'Josh' });
+      assert.equal(first.status, 200);
+
+      const again = await post(app, '/api/profiles', { name: 'Josh' });
+      assert.equal(again.status, 409);
+      assert.equal(again.body.error, 'name_taken');
+      assert.match(again.body.message, /already a profile called Josh/);
+
+      const listed = await get(app, '/api/profiles');
+      assert.equal(listed.body.profiles.length, 1);
+    } finally {
+      await app.close();
+    }
+  });
+
   test('POST requires the per-launch token', async () => {
     const { app } = await setup();
     try {

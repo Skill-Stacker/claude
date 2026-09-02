@@ -84,7 +84,18 @@ export function wireProfiles(app, { db, paths, lockManager, bus }) {
     if (!name || name.length > NAME_MAX) {
       return ctx.sendJson(400, { error: 'bad_name', message: `Name must be 1 to ${NAME_MAX} characters.` });
     }
-    const profile = createProfile(db, { name, kind: 'child' });
+    let profile;
+    try {
+      profile = createProfile(db, { name, kind: 'child' });
+    } catch (err) {
+      if (err && /UNIQUE/i.test(String(err.message || ''))) {
+        return ctx.sendJson(409, {
+          error: 'name_taken',
+          message: `There is already a profile called ${name}. Pick it from the list, or use a different name.`,
+        });
+      }
+      throw err;
+    }
     ensureProfileDirs(paths.profiles, profile);
     ctx.sendJson(200, { profile: toApiProfile(paths, lockManager, profile) });
   });

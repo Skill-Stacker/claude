@@ -621,6 +621,15 @@ function setEnginePill(state) {
 api.events.on('engine', (data) => {
   if (data && data.state) setEnginePill(data.state);
 });
+// The engine may already be ready before this page connects to the event
+// stream (a second browser tab, or a page reload), and SSE only carries
+// changes, so read the current state once at load.
+api
+  .getJson('/api/status')
+  .then((status) => {
+    if (status && status.engine && status.engine.state) setEnginePill(status.engine.state);
+  })
+  .catch(() => {});
 
 // ---------------------------------------------------------------------------
 // Clock
