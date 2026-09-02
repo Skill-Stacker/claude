@@ -139,3 +139,28 @@ export function messagesSnapshot(messages) {
 // ---------------------------------------------------------------------------
 
 export const DEFAULT_EVENT_MINUTES = 60;
+
+// ---------------------------------------------------------------------------
+// Locating a message from a spoken hint (a sender's name, or a subject
+// word), shared by read_message and thread_summary. Tries a contact/recent
+// sender match first (the hint is probably a name), then falls back to a
+// keyword match against subject and body. Never guesses beyond what one of
+// those two lookups actually returns.
+// ---------------------------------------------------------------------------
+
+const LOOKBACK_DAYS_FOR_HINT = 365;
+
+export function findMessageByHint(db, gmail, contacts, profileId, hint, now) {
+  const sinceUtc = now.minus({ days: LOOKBACK_DAYS_FOR_HINT }).toUTC().toISO({ suppressMilliseconds: true });
+
+  const resolved = contacts.resolveRecipient(db, profileId, hint);
+  if (resolved.status === 'one') {
+    const bySender = gmail.recentFrom(db, profileId, resolved.contact.address, sinceUtc);
+    if (bySender.length) return bySender[0];
+  }
+
+  const byKeyword = gmail.keywordScan(db, profileId, hint, sinceUtc);
+  if (byKeyword.length) return byKeyword[0];
+
+  return null;
+}
