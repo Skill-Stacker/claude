@@ -97,7 +97,7 @@ export function mount(host) {
   modelField.className = 'img-row';
   const modelInput = document.createElement('input');
   modelInput.type = 'text';
-  modelInput.placeholder = 'Path to a model file inside this stick’s models folder';
+  modelInput.placeholder = "Path to a model file inside this stick's models folder";
   modelInput.style.flex = '1 1 auto';
   const modelBtn = document.createElement('button');
   modelBtn.type = 'button';

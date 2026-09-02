@@ -182,6 +182,21 @@ export async function wire(app) {
     modelsMod.wireModels(app, { models });
   }
 
+  // Studio: make a picture (sd.cpp) and video tools (ffmpeg). Both spawn their
+  // helpers on demand and reap them when idle.
+  const imagesMod = await tryImport('./lib/studio/images.js', missing);
+  if (imagesMod && downloads) {
+    const images = imagesMod.createImages({ paths, manifest, downloads, bus, netlog });
+    imagesMod.wireImages(app, { images });
+    if (typeof images.stop === 'function') app.registerShutdown(() => images.stop());
+  }
+  const videoMod = await tryImport('./lib/studio/video.js', missing);
+  if (videoMod && downloads) {
+    const video = videoMod.createVideoTools({ paths, manifest, downloads, stt, bus, netlog });
+    videoMod.wireVideo(app, { video });
+    if (typeof video.stop === 'function') app.registerShutdown(() => video.stop());
+  }
+
   // Kick off first run (downloads, then the engine) without blocking the page.
   if (firstRun) {
     firstRun.start().catch((err) => log('first run failed:', (err && err.message) || err));

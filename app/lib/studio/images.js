@@ -141,7 +141,7 @@ export function createImages({ paths, manifest, downloads, bus, netlog, spawn = 
       return {
         present: false,
         path: null,
-        note: 'No picture model is pinned yet. Paste the path to a model file from this stick’s models folder.',
+        note: "No picture model is pinned yet. Paste the path to a model file from this stick's models folder.",
       };
     }
     let present = false;
@@ -202,7 +202,7 @@ export function createImages({ paths, manifest, downloads, bus, netlog, spawn = 
   function setModelPath(raw) {
     const resolved = resolveModelPath(paths, raw);
     if (!resolved) {
-      throw apiError(400, 'bad_model_path', 'That has to be a file inside this stick’s models folder.');
+      throw apiError(400, 'bad_model_path', "That has to be a file inside this stick's models folder.");
     }
     let ok = false;
     try {
