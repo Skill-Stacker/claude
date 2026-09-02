@@ -202,7 +202,7 @@ describe('build-installer', () => {
     const outFile = path.join(scratch, 'installer-final.html');
     installer.main(['--payload', payloadDir, '--out', outFile, '--version', '9.9.9']);
     const html = fs.readFileSync(outFile, 'utf8');
-    assert.ok(!html.includes('—'), 'no em dash');
+    assert.ok(!html.includes('\u2014'), 'no em dash');
     assert.ok(!html.includes('<?') && !html.includes('?>'), 'no PHP-openable sequences');
     const opens = (html.match(/<script\b/gi) || []).length;
     const closes = (html.match(/<\/script>/gi) || []).length;
@@ -309,6 +309,27 @@ describe('build-release', () => {
 
     const winCaEntries = entries.filter((e) => /node_modules\/win-ca\//.test(e));
     assert.deepEqual(winCaEntries, [], 'win-ca should be dropped from a non-Windows zip');
+
+    const providerEntries = entries.filter((e) =>
+      /(libonnxruntime_providers_(cuda|tensorrt)|onnxruntime_providers_(cuda|tensorrt).*\.dll)$/i.test(e),
+    );
+    assert.deepEqual(providerEntries, [], 'no GPU execution provider library should be in the release zip');
+    // the small shared provider stub is not a GPU provider and should survive
+    assert.ok(
+      entries.some((e) => /libonnxruntime_providers_shared\.so$/.test(e)),
+      'the shared provider stub should still be present',
+    );
+
+    const foreignSharpEntries = entries.filter((e) => {
+      const m = e.match(/node_modules\/@img\/(sharp-[a-z0-9]+-[a-z0-9]+|sharp-libvips-[a-z0-9]+-[a-z0-9]+)\//);
+      if (!m) return false;
+      return !/(^|\/)@img\/(sharp-linux-x64|sharp-libvips-linux-x64)\//.test(e);
+    });
+    assert.deepEqual(foreignSharpEntries, [], 'no foreign-platform @img/sharp package should be in the linux-x64 zip');
+    assert.ok(
+      entries.some((e) => e.includes('@img/sharp-linux-x64/')),
+      'the matching @img/sharp-linux-x64 package should be present',
+    );
   });
 });
 
