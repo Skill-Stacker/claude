@@ -6,7 +6,7 @@ Everything is same-origin on `http://127.0.0.1:<port>` (47300 to 47304). The pag
 - `GET /` the page. `GET /api/status` `{ app, version, port, pid, uptime, engine, voice, downloads, profile }` where the last four are filled by modules through `app.setStatus(name, fn)`. `GET /api/events` SSE. `GET /api/netlog` `{ entries, description }`. `POST /api/echo`. `WS /ws/mic`.
 
 ## Boot and downloads (app/lib/downloads.js + app/lib/firstrun.js)
-- `GET /api/firstrun` `{ phase: 'preflight'|'downloading'|'verifying'|'ready'|'blocked', steps: [{ id: 'node'|'engine'|'model'|'tts'|'stt', label, state: 'pending'|'active'|'done'|'failed'|'skipped', received, total, percent, message }], free, needed, gpu: { available, detail }, message }`.
+- `GET /api/firstrun` `{ phase: 'preflight'|'downloading'|'verifying'|'probing'|'starting'|'ready'|'blocked'|'failed', steps: [{ id: 'node'|'engine'|'model'|'tts'|'stt', label, state: 'pending'|'active'|'done'|'failed'|'skipped', received, total, percent, message }], free, needed, gpu: { available, detail }, message }`.
 - `POST /api/firstrun/start` begins or resumes downloads; `POST /api/firstrun/retry` after a failure. SSE `firstrun` events carry the same shape as GET.
 - SSE `engine` events: `{ state: 'starting'|'loading'|'ready'|'spawn_enoent'|'silent'|'crashed'|'failed'|'stopped', port, guidance, lastLog, gpu }`.
 
