@@ -146,10 +146,36 @@ function enumValuesFromGrammar(grammar) {
   return matches.map((m) => m.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, '\\'));
 }
 
+// A handful of keyword hints so the fake routes everyday phrasings the way
+// the real model would, which keeps the smoke run honest. An enum value
+// named in the text still wins; otherwise fall back to "chat" when the
+// grammar offers it, else the first value.
+const ENUM_HINTS = [
+  ['set_reminder', /\bremind\b|\breminder\b/],
+  ['list_reminders', /\bmy reminders\b|\bwhat reminders\b/],
+  ['create_event', /\b(add|put|schedule|create)\b.*\b(calendar|appointment|meeting|event)\b/],
+  ['move_event', /\b(move|reschedule|push)\b.*\b(appointment|meeting|event|calendar)\b/],
+  ['free_check', /\bam i free\b|\bfree (on|at)\b|\banything (open|free)\b/],
+  ['next_event', /\bnext (appointment|event|thing|meeting)\b|\bwhen('s| is) my\b/],
+  ['why_missing_event', /\bwhy (don't|do not|can't) you see\b|\bjust added\b/],
+  ['date_agenda', /\btomorrow\b|\bthis week\b|\bon (monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/],
+  ['today_agenda', /\btoday\b|\bmy calendar\b|\bmy day\b/],
+  ['unread_from', /\b(email|mail|message)s? from\b|\bhas .* emailed\b|\bunread\b/],
+  ['keyword_scan', /\banything from\b|\bany (bills|emails?) (come in|about)\b/],
+  ['thread_summary', /\bsummari[sz]e\b|\bcatch me up\b/],
+  ['read_message', /\bread (that|it|the|me)\b/],
+  ['draft_reply', /\breply\b|\bwrite back\b/],
+  ['send_confirmed', /^\s*(yes|send it|go ahead)\b/],
+];
+
 function pickEnumValue(values, userText) {
   const lower = userText.toLowerCase();
-  const hit = values.find((v) => lower.includes(String(v).toLowerCase()));
-  return hit !== undefined ? hit : values[0];
+  const direct = values.find((v) => lower.includes(String(v).toLowerCase()));
+  if (direct !== undefined) return direct;
+  for (const [name, re] of ENUM_HINTS) {
+    if (values.includes(name) && re.test(lower)) return name;
+  }
+  return values.includes('chat') ? 'chat' : values[0];
 }
 
 function pickTool(tools, toolChoice) {
