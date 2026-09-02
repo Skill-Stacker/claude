@@ -352,18 +352,22 @@ function tlsHandshakeOverSocket(socket, servername, ca, timeoutMs, signal) {
 // already-secured) socket and resolves with the response.
 function requestOverSocket(socket, urlObj, method, headers) {
   return new Promise((resolve, reject) => {
+    // agent:false would make http.request ignore createConnection entirely
+    // and dial its own default (localhost:80) socket, so it is left unset;
+    // that means Node may keep this raw tunneled socket around for reuse,
+    // so it is destroyed by hand once the response is done with.
     const req = http.request({
       method,
       path: urlObj.pathname + urlObj.search,
       headers: { ...headers, Host: urlObj.host, Connection: 'close' },
       createConnection: () => socket,
-      // No agent: createConnection only takes effect without one, and we
-      // want this one-off tunneled socket closed after this single
-      // request, not pooled for reuse.
-      agent: false,
     });
     req.on('error', reject);
-    req.on('response', (res) => resolve(res));
+    req.on('response', (res) => {
+      res.once('end', () => socket.destroy());
+      res.once('close', () => socket.destroy());
+      resolve(res);
+    });
     req.end();
   });
 }

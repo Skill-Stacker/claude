@@ -157,12 +157,17 @@ export function runGates(html) {
   if (html.includes(EM_DASH)) {
     errors.push('output contains an em dash (U+2014)');
   }
-  const openCount = (html.match(/<script\b/gi) || []).length;
-  const closeCount = (html.match(/<\/script>/gi) || []).length;
-  if (openCount !== closeCount) {
-    errors.push(
-      `a payload appears to contain an unescaped </script> (${openCount} opening <script> tags vs ${closeCount} closing tags)`,
-    );
+  // A real payload may legitimately contain the literal text "<script>"
+  // (a bare opening tag has no special meaning inside another tag's script
+  // data), so counting "<script" and "</script>" substrings independently
+  // is not a valid check. Instead, sweep out every well-formed block the
+  // same way an HTML tokenizer would (lazily, up to the nearest literal
+  // "</script>"), then confirm nothing script-tag-shaped is left over.
+  // An unescaped "</script>" inside a payload ends its own block early and
+  // leaves a stray fragment behind; a fully escaped payload leaves none.
+  const stripped = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+  if (/<\/?script\b/i.test(stripped)) {
+    errors.push('a payload appears to contain an unescaped </script> (script tag boundaries do not balance)');
   }
   const byteSize = Buffer.byteLength(html, 'utf8');
   if (byteSize > MAX_BYTES) {
