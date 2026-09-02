@@ -27,7 +27,7 @@ function sanitizeHistory(history) {
 }
 
 export function wireChat(app, deps) {
-  const { db, memory, profiles, settings } = deps;
+  const { db, memory, profiles, settings, now: nowFn = () => new Date() } = deps;
   const brain = createBrain(deps);
 
   app.setStatus('brain', () => ({
@@ -138,7 +138,7 @@ export function wireChat(app, deps) {
     const profile = profiles.getProfile(db, profileId);
     if (!profile) return ctx.sendJson(404, { error: 'profile not found' });
     const zone = resolveZone(settings, profileId);
-    const brief = buildBrief({ db, profileId, now: new Date(), zone });
+    const brief = buildBrief({ db, profileId, now: nowFn(), zone });
     return ctx.sendJson(200, brief);
   });
 
