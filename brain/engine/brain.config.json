@@ -21,5 +21,14 @@
     "endpoint": "http://127.0.0.1:8080/v1/embeddings",
     "model": "nomic-embed-text",
     "api_key": ""
+  },
+
+  "_sections_help": "Each section is its own wiki: a subfolder indexed into its own database and kept OUT of the main brain index, so bulky reference material does not drown out memory and sessions. Index or search one with `--section <name>`. Empty db_path defaults to ~/Brain-index/<name>.db.",
+  "sections": {
+    "local-ai-master": {
+      "path": "Local AI Master",
+      "db_path": "",
+      "description": "Archived Local AI Master course platform (505 chapters, 531 pages plus blog/model/reference pages). Reference material, its own wiki."
+    }
   }
 }

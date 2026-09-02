@@ -29,6 +29,20 @@ That column is empty until the backend-later step fills it. Until then,
 `search --semantic` explains how to turn it on and stops. See
 `backend-later.md`.
 
+## Sections: separate wikis
+
+A section is a subfolder indexed into its own database and kept out of the main
+brain index, so bulky reference material does not crowd out memory and sessions.
+`Local AI Master/` is one. Configure sections in `engine/brain.config.json`.
+
+```
+python engine/brainctl.py sections                               # list them
+python engine/brainctl.py --section local-ai-master index         # build its wiki
+python engine/brainctl.py --section local-ai-master search "rag"  # search only it
+```
+
+Each section is a normal index underneath, so everything below applies to it too.
+
 ## The schema at a glance
 
 - `notes` - one row per note: `slug`, `path`, `folder`, `title`, `description`,

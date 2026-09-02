@@ -42,7 +42,7 @@ The working folders are unchanged and still hold the real content:
 | `Ventures/` | One folder per business line, the published record. |
 | `Sessions/` | Dated session write-ups. |
 | `Writing/` | Josh's 2020 daily blog, the voice reference. |
-| `Local AI Master/` | Archived course platform, reference. |
+| `Local AI Master/` | Archived course platform. Now its own wiki section (see below), kept out of the main index. |
 | `Attachments/` | Pasted images and files. |
 
 New in the Open Brain layout:
@@ -64,6 +64,20 @@ python engine/brainctl.py stats             # what is in the index
 
 Semantic search ("find notes about X by meaning") is scaffolded but off until
 you point it at a local embedding server. See `docs/backend-later.md`.
+
+## Sections (separate wikis)
+
+Bulky reference material can live in its own section: a subfolder indexed into
+its own database and kept OUT of the main brain index, so it does not drown out
+memory and sessions. `Local AI Master/` is set up this way.
+
+```
+python engine/brainctl.py sections                              # list sections
+python engine/brainctl.py --section local-ai-master index        # build its wiki
+python engine/brainctl.py --section local-ai-master search "rag" # search only it
+```
+
+Sections are configured in `engine/brain.config.json`.
 
 ## Where the database lives
 
