@@ -466,6 +466,12 @@ export function mount(host) {
     win.open();
     submitText(text, { voice: true });
   };
+  // Used by other windows (Connect's "Try it") to put text into Scout's
+  // mouth as if it had been typed, without marking it as spoken.
+  win.sendText = function sendText(text) {
+    win.open();
+    submitText(text, {});
+  };
 
   return win;
 }
