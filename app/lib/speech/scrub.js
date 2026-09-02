@@ -412,6 +412,12 @@ export function forSpeech(text, { mode = 'chat' } = {}) {
 
   t = normalizeSmartQuotes(t);
   t = t.replace(/\s+/g, ' ').trim();
+  // Cleanup for punctuation collisions a substitution can leave behind: a
+  // removed emoji can strand a space right before punctuation ("team !"),
+  // and a replacement that itself ends in a period (like "Q&A" -> "Q. and
+  // A.") can double up against punctuation already in the source text.
+  t = t.replace(/\s+([,.!?;:])/g, '$1');
+  t = t.replace(/([.!?])\1+/g, '$1');
   if (t && !/[.!?]$/.test(t)) t += '.';
 
   return t;
