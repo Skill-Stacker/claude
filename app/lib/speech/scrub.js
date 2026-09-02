@@ -205,7 +205,7 @@ function stripMarkdown(text) {
 
 function normalizeDashesAndEllipses(t) {
   return t
-    .replace(/\s*[—–]\s*/g, ', ')
+    .replace(/\s*[\u2014\u2013]\s*/g, ', ')
     .replace(/…/g, '.')
     .replace(/\.{3,}/g, '.');
 }
