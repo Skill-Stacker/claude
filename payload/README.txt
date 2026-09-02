@@ -68,7 +68,8 @@ WINDOWS NOTES
 
 MAC NOTES
   The first time you open Start Button.command, macOS may ask you
-  to confirm before it runs, since it was copied off the web.
+  to confirm before it runs. This is Gatekeeper, the safety check
+  macOS runs on anything copied off the web, and it only asks once.
 
   On macOS 15 (Sequoia) and later: open System Settings, then
   Privacy and Security, then choose Open Anyway.
