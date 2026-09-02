@@ -1,100 +1,86 @@
-<title>StickOS</title>
+<!doctype html>
+<html lang="en">
+<head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<style>
-  body {
-    background: #10131a;
-    color: #e7ebf3;
-    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-    margin: 0;
-  }
-  main {
-    max-width: 32rem;
-    padding: 2rem;
-    text-align: center;
-  }
-  h1 {
-    font-size: 1.4rem;
-    font-weight: 600;
-    margin: 0 0 0.5rem;
-  }
-  p {
-    color: #9aa4b8;
-    margin: 0.25rem 0;
-  }
-  #log {
-    margin-top: 1.5rem;
-    text-align: left;
-    font-family: ui-monospace, Menlo, Consolas, monospace;
-    font-size: 0.8rem;
-    color: #6f7891;
-    max-height: 8rem;
-    overflow-y: auto;
-    border-top: 1px solid #262b38;
-    padding-top: 0.75rem;
-  }
-  #log div {
-    padding: 0.1rem 0;
-  }
-</style>
-<main>
-  <h1 id="status">StickOS server is starting</h1>
-  <p id="detail">This page will replace itself once the real UI is built.</p>
-  <div id="log"></div>
-</main>
+<title>Scout</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- BOOT OVERLAY: visible the instant the page paints. boot.js fills in
+     bootSub/bootLog/bootSteps/bootNote/bootRetryBtn and fades this out once
+     the engine is ready (or hides it right away if /api/firstrun is 404,
+     meaning that module is not wired in yet). -->
+<div id="boot" role="status" aria-live="polite">
+  <div class="boot-card">
+    <div class="boot-logo" aria-hidden="true">S</div>
+    <div class="boot-title">Scout</div>
+    <div class="boot-sub" id="bootSub">Getting ready</div>
+    <div class="boot-bar" id="bootBar" hidden><i id="bootBarFill"></i></div>
+    <div class="boot-log" id="bootLog">Starting up</div>
+    <div class="boot-steps" id="bootSteps"></div>
+    <div class="boot-note" id="bootNote" hidden></div>
+    <button type="button" id="bootRetryBtn" class="btn-primary" hidden>Try Again</button>
+  </div>
+</div>
+
+<!-- DESKTOP: hidden until boot finishes. app.js builds the icons, start
+     menu, and every window into this shell. -->
+<div id="desktop" hidden>
+  <canvas id="lamp" aria-hidden="true"></canvas>
+
+  <div class="topbar">
+    <div class="brand" id="startMenuBtn" role="button" tabindex="0" aria-haspopup="true" aria-expanded="false">
+      <span class="brand-mark" aria-hidden="true">S</span>Scout
+    </div>
+    <div class="pill" id="enginePill"><span class="dot off" id="engineDot"></span><span id="engineTxt">starting</span></div>
+    <div class="spacer"></div>
+    <div class="pill profile-chip" id="profileChip" hidden></div>
+    <div class="pill leaves-pill">stays on this stick</div>
+  </div>
+
+  <div class="icons" id="desktopIcons"></div>
+
+  <div class="startmenu" id="startmenu" hidden></div>
+
+  <div class="taskbar">
+    <button type="button" class="start" id="startBtn" aria-haspopup="true" aria-expanded="false">Start</button>
+    <div class="tasks" id="tasks"></div>
+    <div class="clock"><b id="clockTime">-</b><span id="clockDate">-</span></div>
+  </div>
+
+  <button type="button" id="mic" disabled aria-label="Hold to talk to Scout">
+    <span id="micIcon" aria-hidden="true">mic</span>
+    <span id="micLabel">voice loading</span>
+  </button>
+  <div id="voice-status" aria-live="polite"></div>
+</div>
+
+<div id="toast-host" aria-live="polite"></div>
+
 <script>
   window.STICKOS_TOKEN = "__STICKOS_TOKEN__";
   window.STICKOS_ORIGIN = "__STICKOS_ORIGIN__";
 </script>
-<script>
-  (function () {
-    var statusEl = document.getElementById('status');
-    var logEl = document.getElementById('log');
-
-    function log(line) {
-      var row = document.createElement('div');
-      var time = new Date().toLocaleTimeString();
-      row.textContent = '[' + time + '] ' + line;
-      logEl.appendChild(row);
-      logEl.scrollTop = logEl.scrollHeight;
-    }
-
-    fetch('/api/status')
-      .then(function (res) { return res.json(); })
-      .then(function (status) {
-        statusEl.textContent = 'StickOS server is running on port ' + status.port;
-        log('connected to the app server, version ' + status.version);
-      })
-      .catch(function () {
-        statusEl.textContent = 'StickOS server did not answer';
-      });
-
-    var source = new EventSource('/api/events');
-    source.addEventListener('hello', function () {
-      log('event stream open');
-    });
-    source.addEventListener('netlog', function (event) {
-      try {
-        var entry = JSON.parse(event.data);
-        log('net: ' + entry.host + ' (' + entry.purpose + ')');
-      } catch (err) {
-        log('net: unreadable entry');
-      }
-    });
-    source.onerror = function () {
-      log('event stream lost, the browser will retry');
-    };
-
-    // The server sends a plain ": ping" comment every 15 seconds to keep
-    // the connection open; comments are invisible to EventSource, so this
-    // prints its own heartbeat line on the same cadence as a visible sign
-    // the page is still listening.
-    setInterval(function () {
-      if (source.readyState === EventSource.OPEN) log('heartbeat, still listening');
-    }, 15000);
-  })();
+<script type="module" src="app.js"></script>
+<script type="module">
+  // lamp.js and voice.js belong to a different module of this build. Load
+  // them as a plain best-effort extra: until they land, the lamp canvas
+  // stays a still gradient and the mic button stays in its "voice loading"
+  // state, and everything typed still works.
+  try {
+    await import('./lamp.js');
+  } catch (err) {
+    console.warn('Scout: lamp.js is not available yet', err);
+  }
 </script>
+<script type="module">
+  try {
+    await import('./voice.js');
+  } catch (err) {
+    console.warn('Scout: voice.js is not available yet', err);
+  }
+</script>
+</body>
+</html>

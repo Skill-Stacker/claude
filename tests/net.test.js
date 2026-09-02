@@ -255,11 +255,17 @@ function tunnelingProxy() {
     const upstream = net.connect(Number(portStr), host, () => {
       clientSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
       if (head && head.length) upstream.write(head);
-      upstream.pipe(clientSocket);
-      clientSocket.pipe(upstream);
     });
-    upstream.on('error', () => clientSocket.destroy());
-    clientSocket.on('error', () => upstream.destroy());
+    // Forward data by hand rather than upstream.pipe(clientSocket) et al:
+    // piping two raw sockets into each other here leaves the test runner's
+    // own idle-loop detection confused after the exchange finishes.
+    const teardown = () => { upstream.destroy(); clientSocket.destroy(); };
+    upstream.on('data', (chunk) => { if (!clientSocket.destroyed) clientSocket.write(chunk); });
+    clientSocket.on('data', (chunk) => { if (!upstream.destroyed) upstream.write(chunk); });
+    upstream.on('error', teardown);
+    clientSocket.on('error', teardown);
+    upstream.on('close', teardown);
+    clientSocket.on('close', teardown);
   });
   return server;
 }

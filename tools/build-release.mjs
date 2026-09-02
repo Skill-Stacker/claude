@@ -20,13 +20,44 @@ const repoRoot = path.resolve(__dirname, '..');
 
 const LARGE_FILE_LIMIT = 512 * 1024 * 1024; // fake-capacity USB corruption threshold
 
-// platform id -> onnxruntime-node's napi-v3/<os>/<arch> pair, and the
-// sherpa-onnx-node native companion package name for that platform.
+// platform id -> onnxruntime-node's napi-v3/<os>/<arch> pair, the
+// sherpa-onnx-node native companion package for that platform, and the
+// @img/sharp-* native companion packages (sharp's own binary, plus its
+// libvips backend, which windows does not ship separately).
 export const PLATFORM_DEFS = {
-  'win-x64': { onnxOs: 'win32', onnxArch: 'x64', sherpaPkg: 'sherpa-onnx-win-x64' },
-  'darwin-arm64': { onnxOs: 'darwin', onnxArch: 'arm64', sherpaPkg: 'sherpa-onnx-darwin-arm64' },
-  'linux-x64': { onnxOs: 'linux', onnxArch: 'x64', sherpaPkg: 'sherpa-onnx-linux-x64' },
+  'win-x64': {
+    onnxOs: 'win32',
+    onnxArch: 'x64',
+    sherpaPkg: 'sherpa-onnx-win-x64',
+    sharpPkg: '@img/sharp-win32-x64',
+    sharpLibvipsPkg: null,
+  },
+  'darwin-arm64': {
+    onnxOs: 'darwin',
+    onnxArch: 'arm64',
+    sherpaPkg: 'sherpa-onnx-darwin-arm64',
+    sharpPkg: '@img/sharp-darwin-arm64',
+    sharpLibvipsPkg: '@img/sharp-libvips-darwin-arm64',
+  },
+  'linux-x64': {
+    onnxOs: 'linux',
+    onnxArch: 'x64',
+    sherpaPkg: 'sherpa-onnx-linux-x64',
+    sharpPkg: '@img/sharp-linux-x64',
+    sharpLibvipsPkg: '@img/sharp-libvips-linux-x64',
+  },
 };
+
+// GPU execution providers: the stick runs speech and inference on CPU, and
+// a 342 MB single file (the CUDA provider) sits too close to the
+// fake-capacity USB corruption threshold to ship. The shared provider stub
+// is small, has no GPU dependency, and is left alone.
+const GPU_PROVIDER_PATTERNS = [
+  /^libonnxruntime_providers_cuda/i,
+  /^libonnxruntime_providers_tensorrt/i,
+  /^onnxruntime_providers_cuda.*\.dll$/i,
+  /^onnxruntime_providers_tensorrt.*\.dll$/i,
+];
 
 // Packages that must never end up in a release zip, however they were
 // reached: devDependencies such as playwright, always excluded outright.
@@ -268,6 +299,50 @@ export function pruneOnnxRuntimeNode(stagingAppDir, platform) {
 // matches the target. Fetch it with `npm pack` when it is not already
 // on disk (only the local dev platform's copy installs by default),
 // verifying its version matches sherpa-onnx-node's in package-lock.json.
+// Fetches pkgName@version with `npm pack`, extracts it, verifies the
+// version actually landed matches what was asked for, and copies it into
+// destPath. Shared by the sherpa-onnx and sharp platform-package fetches.
+function fetchNpmPackage(pkgName, version, destPath) {
+  console.log(`  fetching ${pkgName}@${version} (npm pack) ...`);
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stickos-fetch-'));
+  try {
+    const packRes = spawnSync('npm', ['pack', `${pkgName}@${version}`, '--pack-destination', tmpDir], {
+      encoding: 'utf8',
+      cwd: tmpDir,
+    });
+    if (packRes.status !== 0 || packRes.error) {
+      const detail = (packRes.stderr || packRes.error?.message || packRes.stdout || '').trim();
+      const err = new Error(`npm pack failed for ${pkgName}@${version}: ${detail}`);
+      err.npmPackFailed = true;
+      throw err;
+    }
+    const tgzName = packRes.stdout
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .pop()
+      .trim();
+    const tgzPath = path.join(tmpDir, tgzName);
+    const extractDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stickos-fetch-extract-'));
+    try {
+      const tarRes = spawnSync('tar', ['-xzf', tgzPath, '-C', extractDir], { encoding: 'utf8' });
+      if (tarRes.status !== 0) {
+        throw new Error(`failed to extract ${tgzName}: ${(tarRes.stderr || '').trim()}`);
+      }
+      const pkgDir = path.join(extractDir, 'package');
+      const fetchedPkgJson = JSON.parse(fs.readFileSync(path.join(pkgDir, 'package.json'), 'utf8'));
+      if (fetchedPkgJson.version !== version) {
+        throw new Error(`fetched ${pkgName}@${fetchedPkgJson.version} but expected ${version}`);
+      }
+      copyDirRecursive(pkgDir, destPath);
+    } finally {
+      fs.rmSync(extractDir, { recursive: true, force: true });
+    }
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
+
 export function pruneSherpaOnnx(stagingAppDir, platform, lockPkgs) {
   const nodeModulesDir = path.join(stagingAppDir, 'node_modules');
   const wantPkg = PLATFORM_DEFS[platform].sherpaPkg;
@@ -286,44 +361,66 @@ export function pruneSherpaOnnx(stagingAppDir, platform, lockPkgs) {
   if (!sherpaNodeVersion) {
     throw new Error('cannot determine sherpa-onnx-node version from package-lock.json');
   }
+  fetchNpmPackage(wantPkg, sherpaNodeVersion, wantPath);
+}
 
-  console.log(`  fetching ${wantPkg}@${sherpaNodeVersion} (npm pack) ...`);
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stickos-sherpa-'));
-  try {
-    const packRes = spawnSync('npm', ['pack', `${wantPkg}@${sherpaNodeVersion}`, '--pack-destination', tmpDir], {
-      encoding: 'utf8',
-      cwd: tmpDir,
-    });
-    if (packRes.status !== 0 || packRes.error) {
-      const detail = (packRes.stderr || packRes.error?.message || packRes.stdout || '').trim();
-      const err = new Error(`npm pack failed for ${wantPkg}@${sherpaNodeVersion}: ${detail}`);
-      err.npmPackFailed = true;
-      throw err;
+// Same idea as pruneSherpaOnnx, but for sharp's platform binary and its
+// libvips backend (windows bundles libvips into the main package, so it
+// has no separate @img/sharp-libvips-win32-* package to fetch).
+export function pruneSharp(stagingAppDir, platform, lockPkgs) {
+  const sharpDir = path.join(stagingAppDir, 'node_modules', 'sharp');
+  const imgDir = path.join(stagingAppDir, 'node_modules', '@img');
+  const def = PLATFORM_DEFS[platform];
+  const wantPkgs = [def.sharpPkg, def.sharpLibvipsPkg].filter(Boolean);
+  const wantNames = new Set(wantPkgs.map((p) => p.split('/')[1]));
+
+  if (fs.existsSync(imgDir)) {
+    for (const entry of fs.readdirSync(imgDir)) {
+      const isSharpPlatformPkg =
+        /^sharp-(win32|darwin|linux|linuxmusl|wasm32)(-|$)/.test(entry) || /^sharp-libvips-/.test(entry);
+      if (isSharpPlatformPkg && !wantNames.has(entry)) {
+        fs.rmSync(path.join(imgDir, entry), { recursive: true, force: true });
+      }
     }
-    const tgzName = packRes.stdout
-      .trim()
-      .split('\n')
-      .filter(Boolean)
-      .pop()
-      .trim();
-    const tgzPath = path.join(tmpDir, tgzName);
-    const extractDir = fs.mkdtempSync(path.join(os.tmpdir(), 'stickos-sherpa-extract-'));
-    const tarRes = spawnSync('tar', ['-xzf', tgzPath, '-C', extractDir], { encoding: 'utf8' });
-    if (tarRes.status !== 0) {
-      throw new Error(`failed to extract ${tgzName}: ${(tarRes.stderr || '').trim()}`);
-    }
-    const pkgDir = path.join(extractDir, 'package');
-    const fetchedPkgJson = JSON.parse(fs.readFileSync(path.join(pkgDir, 'package.json'), 'utf8'));
-    if (fetchedPkgJson.version !== sherpaNodeVersion) {
-      throw new Error(
-        `fetched ${wantPkg}@${fetchedPkgJson.version} but sherpa-onnx-node needs ${sherpaNodeVersion}`,
-      );
-    }
-    copyDirRecursive(pkgDir, wantPath);
-    fs.rmSync(extractDir, { recursive: true, force: true });
-  } finally {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
   }
+
+  if (!fs.existsSync(sharpDir)) return; // sharp is not a dependency here, nothing to fetch
+
+  for (const pkgName of wantPkgs) {
+    const destPath = path.join(stagingAppDir, 'node_modules', pkgName);
+    if (fs.existsSync(destPath)) continue; // already staged (local platform match)
+    const version = lockPkgs[`node_modules/${pkgName}`]?.version;
+    if (!version) {
+      throw new Error(`cannot determine version for ${pkgName} from package-lock.json`);
+    }
+    fetchNpmPackage(pkgName, version, destPath);
+  }
+}
+
+// Removes GPU execution providers from onnxruntime-node: the stick runs
+// speech and inference on CPU, and these are large enough to matter (the
+// CUDA provider alone is 342 MB on linux/x64). The shared provider stub
+// is small and has no GPU dependency, so it is left in place.
+export function pruneGpuProviders(stagingAppDir) {
+  const binDir = path.join(stagingAppDir, 'node_modules', 'onnxruntime-node', 'bin');
+  const removed = [];
+  if (!fs.existsSync(binDir)) return removed;
+  function walk(dir) {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        walk(full);
+        continue;
+      }
+      if (GPU_PROVIDER_PATTERNS.some((re) => re.test(e.name))) {
+        const size = fs.statSync(full).size;
+        fs.rmSync(full, { force: true });
+        removed.push({ path: full, size });
+      }
+    }
+  }
+  walk(binDir);
+  return removed;
 }
 
 export function checkLargeFiles(stagingAppDir, platform) {
@@ -496,6 +593,12 @@ export function buildPlatform(platform, { pkg, lockPkgs, gitignorePatterns, outD
     }
     pruneOnnxRuntimeNode(stagingApp, platform);
     pruneSherpaOnnx(stagingApp, platform, lockPkgs);
+    pruneSharp(stagingApp, platform, lockPkgs);
+    const removedProviders = pruneGpuProviders(stagingApp);
+    if (removedProviders.length) {
+      const mb = (removedProviders.reduce((sum, r) => sum + r.size, 0) / 1048576).toFixed(1);
+      console.log(`  stripped ${removedProviders.length} GPU provider file(s), ${mb} MB`);
+    }
 
     const nodeModulesDir = path.join(stagingApp, 'node_modules');
     if (fs.existsSync(nodeModulesDir)) {

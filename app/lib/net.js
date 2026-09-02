@@ -15,6 +15,7 @@
 import http from 'node:http';
 import https from 'node:https';
 import tls from 'node:tls';
+import netModule from 'node:net';
 import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
@@ -265,6 +266,13 @@ function tunnelRefusedError(cause) {
 
 // Opens an HTTP CONNECT tunnel through proxyUrl to targetHost:targetPort and
 // resolves with the raw (unencrypted) socket once the proxy accepts.
+//
+// This writes and parses the CONNECT exchange by hand on a plain
+// net.Socket rather than using http.request's own CONNECT handling: a
+// socket handed back through http.request's 'connect' event carries extra
+// internal HTTP-client state that a later tls.connect({ socket }) over it
+// does not get on with cleanly under some test runners. A plain socket has
+// none of that baggage.
 function openProxyTunnel(proxyUrl, targetHost, targetPort, timeoutMs, signal) {
   return new Promise((resolve, reject) => {
     let proxy;
@@ -274,51 +282,80 @@ function openProxyTunnel(proxyUrl, targetHost, targetPort, timeoutMs, signal) {
       reject(err);
       return;
     }
-    const headers = { Host: `${targetHost}:${targetPort}` };
+    let authHeader = '';
     if (proxy.username || proxy.password) {
       const user = decodeURIComponent(proxy.username);
       const pass = decodeURIComponent(proxy.password);
-      headers['Proxy-Authorization'] = 'Basic ' + Buffer.from(`${user}:${pass}`).toString('base64');
+      authHeader = `Proxy-Authorization: Basic ${Buffer.from(`${user}:${pass}`).toString('base64')}\r\n`;
     }
 
-    const req = http.request({
-      host: proxy.hostname,
-      port: proxy.port || 80,
-      method: 'CONNECT',
-      path: `${targetHost}:${targetPort}`,
-      headers,
-      timeout: timeoutMs,
-    });
+    const socket = netModule.connect({ host: proxy.hostname, port: Number(proxy.port) || 80 });
+    let settled = false;
+    let buffered = Buffer.alloc(0);
 
-    const onAbort = () => req.destroy(abortedError());
+    const onAbort = () => socket.destroy(abortedError());
     if (signal) signal.addEventListener('abort', onAbort, { once: true });
+
     const cleanup = () => {
       if (signal) signal.removeEventListener('abort', onAbort);
+      socket.removeListener('data', onData);
+      socket.removeListener('error', onError);
+      socket.removeListener('timeout', onTimeout);
+      socket.removeListener('close', onClose);
+    };
+    const settleResolve = () => {
+      if (settled) return;
+      settled = true;
+      socket.setTimeout(0);
+      cleanup();
+      resolve(socket);
+    };
+    const settleReject = (err) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      socket.destroy();
+      reject(err);
     };
 
-    // Node fires 'connect' for every reply to a CONNECT request, success or
-    // not; 'response' never fires here. A non-2xx status means the proxy
-    // rejected the tunnel, so the socket is unusable.
-    req.on('connect', (res, socket) => {
-      cleanup();
-      if (res.statusCode >= 200 && res.statusCode < 300) {
-        resolve(socket);
-      } else {
-        socket.destroy();
-        reject(proxyStatusError(res.statusCode));
+    const onTimeout = () => settleReject(timeoutMarked());
+    const onError = (err) => settleReject(tunnelRefusedError(err));
+    const onClose = () => settleReject(tunnelRefusedError(new Error('the proxy closed the connection')));
+    const onData = (chunk) => {
+      buffered = Buffer.concat([buffered, chunk]);
+      const headerEnd = buffered.indexOf('\r\n\r\n');
+      if (headerEnd === -1) {
+        if (buffered.length > 64 * 1024) settleReject(tunnelRefusedError(new Error('proxy response too large')));
+        return;
       }
+      const statusLine = buffered.subarray(0, headerEnd).toString('latin1').split('\r\n')[0] || '';
+      const rest = buffered.subarray(headerEnd + 4);
+      const match = /^HTTP\/1\.[01]\s+(\d{3})/.exec(statusLine);
+      const status = match ? Number(match[1]) : 502;
+      // Any bytes already sent past the header boundary (there normally
+      // are none for a CONNECT reply) go back on the socket so the TLS
+      // handshake still sees them.
+      if (rest.length) socket.unshift(rest);
+      if (status >= 200 && status < 300) {
+        settleResolve();
+      } else {
+        settleReject(proxyStatusError(status));
+      }
+    };
+
+    socket.setTimeout(timeoutMs);
+    socket.on('connect', () => {
+      socket.write(
+        `CONNECT ${targetHost}:${targetPort} HTTP/1.1\r\n` +
+        `Host: ${targetHost}:${targetPort}\r\n` +
+        authHeader +
+        'Proxy-Connection: Keep-Alive\r\n\r\n',
+      );
     });
-    req.on('timeout', () => {
-      req.destroy();
-      cleanup();
-      reject(timeoutMarked());
-    });
-    req.on('error', (err) => {
-      cleanup();
-      if (err && err.name === 'AbortError') reject(err);
-      else reject(tunnelRefusedError(err));
-    });
-    req.end();
+    socket.on('data', onData);
+    socket.on('error', onError);
+    socket.on('timeout', onTimeout);
+    socket.on('close', onClose);
   });
 }
 

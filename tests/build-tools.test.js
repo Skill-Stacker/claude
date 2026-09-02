@@ -379,4 +379,63 @@ describe('build-release helpers', () => {
     assert.ok(!keep.has('node_modules/playwright'));
     assert.ok(!keep.has('node_modules/playwright-core'));
   });
+
+  test('pruneGpuProviders strips CUDA and TensorRT but keeps the shared stub', () => {
+    const scratch = mkScratch('stickos-gpu-prune-');
+    try {
+      const napi = path.join(scratch, 'node_modules', 'onnxruntime-node', 'bin', 'napi-v3', 'linux', 'x64');
+      fs.mkdirSync(napi, { recursive: true });
+      fs.writeFileSync(path.join(napi, 'libonnxruntime_providers_cuda.so'), 'x'.repeat(10));
+      fs.writeFileSync(path.join(napi, 'libonnxruntime_providers_tensorrt.so'), 'x'.repeat(10));
+      fs.writeFileSync(path.join(napi, 'libonnxruntime_providers_shared.so'), 'x'.repeat(10));
+      fs.writeFileSync(path.join(napi, 'onnxruntime_binding.node'), 'x'.repeat(10));
+
+      const napiWin = path.join(scratch, 'node_modules', 'onnxruntime-node', 'bin', 'napi-v3', 'win32', 'x64');
+      fs.mkdirSync(napiWin, { recursive: true });
+      fs.writeFileSync(path.join(napiWin, 'onnxruntime_providers_cuda_v2.dll'), 'x'.repeat(10));
+      fs.writeFileSync(path.join(napiWin, 'onnxruntime_providers_shared.dll'), 'x'.repeat(10));
+
+      const removed = release.pruneGpuProviders(scratch);
+      assert.equal(removed.length, 3);
+      assert.ok(!fs.existsSync(path.join(napi, 'libonnxruntime_providers_cuda.so')));
+      assert.ok(!fs.existsSync(path.join(napi, 'libonnxruntime_providers_tensorrt.so')));
+      assert.ok(!fs.existsSync(path.join(napiWin, 'onnxruntime_providers_cuda_v2.dll')));
+      assert.ok(fs.existsSync(path.join(napi, 'libonnxruntime_providers_shared.so')), 'shared stub must survive');
+      assert.ok(fs.existsSync(path.join(napiWin, 'onnxruntime_providers_shared.dll')), 'shared stub must survive');
+      assert.ok(fs.existsSync(path.join(napi, 'onnxruntime_binding.node')), 'binding must survive');
+    } finally {
+      fs.rmSync(scratch, { recursive: true, force: true });
+    }
+  });
+
+  test('pruneSharp drops foreign-platform @img packages and keeps the target ones', () => {
+    const scratch = mkScratch('stickos-sharp-prune-');
+    try {
+      const nm = path.join(scratch, 'node_modules');
+      for (const dir of [
+        'sharp',
+        '@img/colour',
+        '@img/sharp-linux-x64',
+        '@img/sharp-libvips-linux-x64',
+        '@img/sharp-darwin-arm64',
+        '@img/sharp-libvips-darwin-arm64',
+      ]) {
+        fs.mkdirSync(path.join(nm, dir), { recursive: true });
+        fs.writeFileSync(path.join(nm, dir, 'package.json'), '{}');
+      }
+      const lockPkgs = release.loadLockPackages();
+      release.pruneSharp(scratch, 'linux-x64', lockPkgs);
+
+      assert.ok(fs.existsSync(path.join(nm, '@img/sharp-linux-x64')), 'target sharp package must survive');
+      assert.ok(fs.existsSync(path.join(nm, '@img/sharp-libvips-linux-x64')), 'target libvips package must survive');
+      assert.ok(fs.existsSync(path.join(nm, '@img/colour')), 'non-platform @img package must survive untouched');
+      assert.ok(!fs.existsSync(path.join(nm, '@img/sharp-darwin-arm64')), 'foreign sharp package must be removed');
+      assert.ok(
+        !fs.existsSync(path.join(nm, '@img/sharp-libvips-darwin-arm64')),
+        'foreign libvips package must be removed',
+      );
+    } finally {
+      fs.rmSync(scratch, { recursive: true, force: true });
+    }
+  });
 });
