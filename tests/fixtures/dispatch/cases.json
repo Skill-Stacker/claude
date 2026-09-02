@@ -1,0 +1,60 @@
+[
+  { "id": "today-1", "intent": "today_agenda", "text": "what's on my calendar today", "notes": "plain calendar phrasing" },
+  { "id": "today-2", "intent": "today_agenda", "text": "am I busy today", "notes": "mail-adjacent phrasing widened for coverage" },
+
+  { "id": "date-1", "intent": "date_agenda", "text": "what's on my calendar next Tuesday", "expectedSlots": { "date_text": "next Tuesday" } },
+  { "id": "date-2", "intent": "date_agenda", "text": "what do I have going on this weekend", "expectedSlots": { "date_text": "this weekend" } },
+  { "id": "date-3", "intent": "date_agenda", "text": "anything on the calendar in October", "expectedSlots": { "date_text": "in October" } },
+
+  { "id": "next-1", "intent": "next_event", "text": "what's my next appointment", "expectedSlots": { "hint": "" } },
+  { "id": "next-2", "intent": "next_event", "text": "when's my next dentist appointment", "expectedSlots": { "hint": "dentist" } },
+  { "id": "next-3", "intent": "next_event", "text": "did you already put the dentist on my calendar?", "mustNotFabricate": true, "notes": "ambiguous scheduling question: only say yes if the data below actually has it" },
+
+  { "id": "free-1", "intent": "free_check", "text": "am I free tomorrow at 3", "expectedSlots": { "when_text": "tomorrow at 3" } },
+  { "id": "free-2", "intent": "free_check", "text": "is Saturday morning open", "expectedSlots": { "when_text": "Saturday morning" } },
+
+  { "id": "why-1", "intent": "why_missing_event", "text": "why isn't my event showing up", "scriptedNoModelCall": true },
+  { "id": "why-2", "intent": "why_missing_event", "text": "I added something to Google Calendar but it's not here, why not", "scriptedNoModelCall": true },
+
+  { "id": "unread-1", "intent": "unread_from", "text": "do I have any unread mail from the school", "expectedSlots": { "sender": "school" } },
+  { "id": "unread-2", "intent": "unread_from", "text": "anything new from grandma", "expectedSlots": { "sender": "grandma" } },
+
+  { "id": "keyword-1", "intent": "keyword_scan", "text": "search my email for invoice", "expectedSlots": { "keyword": "invoice" } },
+  { "id": "keyword-2", "intent": "keyword_scan", "text": "find the message about the field trip", "expectedSlots": { "keyword": "field trip" } },
+
+  { "id": "thread-1", "intent": "thread_summary", "text": "catch me up on the email thread about pickup", "expectedSlots": { "hint": "pickup" } },
+  { "id": "thread-2", "intent": "thread_summary", "text": "what has grandma been saying in that thread", "expectedSlots": { "hint": "grandma" } },
+
+  { "id": "read-1", "intent": "read_message", "text": "read me the email from grandma", "expectedSlots": { "hint": "grandma" } },
+  { "id": "read-2", "intent": "read_message", "text": "what does the message from the school say", "expectedSlots": { "hint": "school" } },
+
+  { "id": "draft-1", "intent": "draft_reply", "text": "reply and tell them we'll be there", "expectedSlots": { "body": "we'll be there" } },
+  { "id": "draft-2", "intent": "draft_reply", "text": "write a reply saying yes please", "expectedSlots": { "body": "yes please" } },
+
+  { "id": "send-1", "intent": "send_confirmed", "text": "send it", "requiresPriorDraft": true },
+  { "id": "send-2", "intent": "send_confirmed", "text": "send it", "coldSend": true, "notes": "no draft this session: must answer there is nothing drafted yet, no confirm event" },
+
+  { "id": "create-1", "intent": "create_event", "text": "put a dentist appointment on my calendar for next Tuesday at 3", "expectedSlots": { "title": "dentist appointment" } },
+  { "id": "create-2", "intent": "create_event", "text": "add soccer practice friday at 5 to my calendar", "expectedSlots": { "title": "soccer practice" } },
+  { "id": "create-3", "intent": "create_event", "text": "schedule a call with the bank tomorrow at 10", "expectedSlots": { "title": "call with the bank" } },
+
+  { "id": "move-1", "intent": "move_event", "text": "move my dentist appointment", "expectedSlots": { "hint": "dentist appointment" } },
+  { "id": "move-2", "intent": "move_event", "text": "can you move soccer practice to a different day", "expectedSlots": { "hint": "soccer practice" } },
+
+  { "id": "reminder-1", "intent": "set_reminder", "text": "remind me to take the chicken out at 6", "expectedSlots": { "text": "take the chicken out", "when_text": "at 6" } },
+  { "id": "reminder-2", "intent": "set_reminder", "text": "set a reminder to call the plumber tomorrow", "expectedSlots": { "text": "call the plumber", "when_text": "tomorrow" } },
+  { "id": "reminder-3", "intent": "set_reminder", "text": "remind me to sign the school form", "expectedSlots": { "text": "sign the school form", "when_text": "" } },
+
+  { "id": "list-reminders-1", "intent": "list_reminders", "text": "what are my reminders" },
+  { "id": "list-reminders-2", "intent": "list_reminders", "text": "what do I still need to do" },
+
+  { "id": "chat-1", "intent": "chat", "text": "what's the capital of France", "mustNotFetch": true },
+  { "id": "chat-2", "intent": "chat", "text": "how do I get red wine out of a carpet", "mustNotFetch": true },
+  { "id": "chat-3", "intent": "chat", "text": "tell me a fun fact about octopuses", "mustNotFetch": true },
+
+  { "id": "helper-homework-1", "mode": "homework", "text": "can you help me with my fractions homework", "skipsStage1": true },
+  { "id": "helper-message-1", "mode": "message", "text": "help me write a note to my teacher about being absent", "skipsStage1": true },
+  { "id": "helper-summarize-1", "mode": "summarize", "text": "summarize this: the dog ran to the park and played fetch for an hour then came home tired", "skipsStage1": true },
+  { "id": "helper-study-1", "mode": "study", "text": "quiz me on the state capitals", "skipsStage1": true },
+  { "id": "helper-story-1", "mode": "story", "text": "tell me a short story about a dragon who is afraid of fire", "skipsStage1": true }
+]

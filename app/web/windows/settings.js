@@ -50,6 +50,19 @@ export function mount(host) {
   const sttNote = document.createElement('p');
   sttNote.className = 'settings-note';
 
+  // -- connected accounts -----------------------------------------------
+  const accountsHd = document.createElement('h4');
+  accountsHd.textContent = 'Connected accounts';
+  const gmailStatusLine = document.createElement('p');
+  gmailStatusLine.className = 'settings-note';
+  const calendarStatusLine = document.createElement('p');
+  calendarStatusLine.className = 'settings-note';
+  const openConnectBtn = document.createElement('button');
+  openConnectBtn.type = 'button';
+  openConnectBtn.className = 'btn-ghost';
+  openConnectBtn.textContent = 'Open Connect';
+  openConnectBtn.addEventListener('click', () => host.windows.connect && host.windows.connect.open());
+
   // -- GPU ----------------------------------------------------------------
   const gpuHd = document.createElement('h4');
   gpuHd.textContent = 'Hardware';
@@ -92,6 +105,7 @@ export function mount(host) {
   body.append(
     voiceLabel, voiceSelect,
     sttLabel, sttSelect, sttNote,
+    accountsHd, gmailStatusLine, calendarStatusLine, openConnectBtn,
     gpuHd, gpuLine,
     contactsHd, contactsList, contactForm,
     sessionHd, newSessionBtn, sessionNote,
@@ -153,6 +167,29 @@ export function mount(host) {
       sttNote.textContent = 'Could not save that. ' + (err.message || '');
     }
   });
+
+  async function loadAccounts() {
+    const profile = host.getProfile();
+    if (!profile) {
+      gmailStatusLine.textContent = 'Pick who you are first.';
+      calendarStatusLine.textContent = '';
+      return;
+    }
+    try {
+      const data = await host.api.getJson('/api/google/status?profileId=' + encodeURIComponent(profile.id));
+      const gmail = data.gmail || {};
+      const calendar = data.calendar || {};
+      gmailStatusLine.textContent = gmail.connected
+        ? 'Gmail: connected as ' + (gmail.address || 'your account') + '.'
+        : 'Gmail: not connected yet.';
+      calendarStatusLine.textContent = calendar.connected
+        ? 'Calendar: connected' + (calendar.staleMinutes != null ? ', last checked ' + calendar.staleMinutes + ' min ago' : '') + '.'
+        : 'Calendar: not connected yet.';
+    } catch (err) {
+      gmailStatusLine.textContent = "Couldn't check Gmail.";
+      calendarStatusLine.textContent = "Couldn't check the calendar.";
+    }
+  }
 
   async function loadGpu() {
     try {
@@ -253,11 +290,15 @@ export function mount(host) {
     originalOpen();
     loadVoices();
     loadStt();
+    loadAccounts();
     loadGpu();
     loadContacts();
   };
   host.onProfileChange(() => {
-    if (win.isOpen()) loadContacts();
+    if (win.isOpen()) {
+      loadAccounts();
+      loadContacts();
+    }
   });
 
   return win;

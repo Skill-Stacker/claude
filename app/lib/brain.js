@@ -69,9 +69,16 @@ export function resolveZone(settings, profileId) {
 // "Today is <weekday>, <spoken date>. The time is <spoken time> in <zone>."
 // The one line every Stage 2/3 user message starts with; the model never
 // computes a date, it only ever reads this line.
+//
+// dates.spokenDate() is deliberately not reused for the date half: it
+// collapses a date equal to `now` to the word "today", which reads as
+// nonsense in "Today is today, September second." This line needs the
+// actual calendar date every time, so it is built directly from the
+// reference moment's own fields instead. The time half has no such
+// collapsing behavior, so spokenTime() is reused as-is.
 export function buildDateLine(dates, now, zone) {
-  const weekday = DateTime.fromJSDate(now.toJSDate ? now.toJSDate() : now, { zone }).weekdayLong;
-  return `Today is ${weekday}, ${dates.spokenDate(now, { now, zone })}. The time is ${dates.spokenTime(now, { zone })} in ${zone}.`;
+  const dt = now.setZone ? now.setZone(zone) : DateTime.fromJSDate(now, { zone });
+  return `Today is ${dt.weekdayLong}, ${dt.monthLong} ${dt.day}, ${dt.year}. The time is ${dates.spokenTime(now, { zone })} in ${zone}.`;
 }
 
 // The cache-stable prefix: system (persona + memory, byte-identical until
@@ -159,7 +166,7 @@ export function createBrain(deps) {
     }
   }
 
-  async function runPlainChat({ systemPrompt, history, text, emit, signal, profileDirPath }) {
+  async function runPlainChat({ systemPrompt, history, text, emit, signal, profileDirPath, startedAt = Date.now() }) {
     const messages = [{ role: 'system', content: systemPrompt }];
     for (const turn of history || []) {
       if (turn && (turn.role === 'user' || turn.role === 'assistant') && typeof turn.content === 'string') {
@@ -187,7 +194,7 @@ export function createBrain(deps) {
       emit('delta', { content: full });
     }
 
-    emit('done', { finishReason: result.finishReason, tokens: result.usage ? result.usage.completion_tokens : null });
+    emit('done', { finishReason: result.finishReason, elapsedMs: Date.now() - startedAt, tokens: result.usage ? result.usage.completion_tokens : null });
     if (profileDirPath) await recordExchange(profileDirPath, text, full);
   }
 
@@ -215,7 +222,7 @@ export function createBrain(deps) {
       const template = MODE_PROMPTS[mode] || MODE_PROMPTS.message;
       const systemPrompt = template.replaceAll('{{name}}', profile.name);
       try {
-        await runPlainChat({ systemPrompt, history, text, emit, signal, profileDirPath });
+        await runPlainChat({ systemPrompt, history, text, emit, signal, profileDirPath, startedAt });
       } catch (err) {
         emit('error', { kind: 'engine', message: String((err && err.message) || err) });
         emit('done', { finishReason: 'error', elapsedMs: Date.now() - startedAt });
@@ -261,6 +268,7 @@ export function createBrain(deps) {
           emit,
           signal,
           profileDirPath,
+          startedAt,
         });
         return;
       }
@@ -310,14 +318,15 @@ export function createBrain(deps) {
       }
 
       if (outcome.type === 'say') {
+        // Unlike 'narrate', the intent module already owns the whole final
+        // sentence here (there is no model output to prefix ahead of), so
+        // any "As of my last check..." wording is built into outcome.text
+        // by the intent module itself (see shared.js's asOfPrefix), not
+        // added again here.
         if (outcome.source) emit('source', outcome.source);
-        const prefixText = outcome.source && outcome.source.kind === 'calendar' && outcome.source.asOf
-          ? `As of my last check at ${dates.spokenTime(outcome.source.asOf, { zone })}, `
-          : '';
-        const full = prefixText + outcome.text;
-        emit('delta', { content: full });
+        emit('delta', { content: outcome.text });
         emit('done', { finishReason: 'stop', elapsedMs: Date.now() - startedAt });
-        await recordExchange(profileDirPath, text, full);
+        await recordExchange(profileDirPath, text, outcome.text);
         return;
       }
 

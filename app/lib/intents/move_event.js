@@ -6,7 +6,7 @@
 // cannot move it directly, and offer to open Google Calendar to that event's
 // day so the human can drag it themselves.
 import { DateTime } from 'luxon';
-import { describeEvent } from './shared.js';
+import { describeEvent, asOfPrefix } from './shared.js';
 
 function dayLinkFor(startUtc, zone) {
   const dt = DateTime.fromISO(startUtc, { zone: 'utc' }).setZone(zone);
@@ -45,7 +45,7 @@ export default {
     if (!found || !found.matchedByHint) {
       return {
         type: 'say',
-        text: `I couldn't find an upcoming event matching "${slots.hint}" to move.`,
+        text: `${asOfPrefix(dates, asOf, zone)}I couldn't find an upcoming event matching "${slots.hint}" to move.`,
         source: { kind: 'calendar', asOf },
       };
     }
