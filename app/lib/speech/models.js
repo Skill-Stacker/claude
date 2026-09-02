@@ -104,7 +104,7 @@ export function isSttModelPresent(paths, id) {
 // `download(asset, destPath, { onProgress, signal })`, matching that
 // module's signature. Extraction uses the system `tar -xjf` (present on
 // Windows 10+, macOS, and Linux) rather than a bzip2 library dependency.
-export async function ensureSttModel(paths, id, { download = downloadAsset, onProgress, signal } = {}) {
+export async function ensureSttModel(paths, id, { download = downloadAsset, onProgress, signal, statePath } = {}) {
   const entry = manifestEntry(paths, id);
   if (isSttModelPresent(paths, id)) {
     return { downloaded: false, extracted: false, dir: sttModelDir(paths, id) };
@@ -113,7 +113,11 @@ export async function ensureSttModel(paths, id, { download = downloadAsset, onPr
   mkdirSync(paths.voices, { recursive: true });
   const archivePath = join(paths.voices, `${entry.dir}.tar.bz2`);
   const asset = { url: entry.url, size: entry.size ?? null, sha256: entry.sha256 ?? null };
-  await download(asset, archivePath, { onProgress, signal });
+  // Scoped under paths.voices (not downloadAsset's own process.cwd()-based
+  // default) so the resumable-download state never leaks outside the
+  // caller's chosen runtime directory, in tests or otherwise.
+  const resolvedStatePath = statePath || join(paths.voices, '.download-state.json');
+  await download(asset, archivePath, { onProgress, signal, statePath: resolvedStatePath });
 
   try {
     execFileSync('tar', ['-xjf', archivePath, '-C', paths.voices], { stdio: 'ignore' });

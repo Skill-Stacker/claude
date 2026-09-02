@@ -58,12 +58,21 @@ export async function wire(app) {
         downloadAsset: (asset, dest, opts = {}) => dl.downloadAsset(asset, dest, { statePath, ...opts }),
       }
     : null;
+  // calendar.fetchIcs expects { status, text } for a completed request and a
+  // thrown error with code 'timeout' for a timeout. net.request throws on
+  // non-2xx, so map that back into a status the calendar module can read.
   const fetchText = net
     ? async (url, { timeoutMs = 5000 } = {}) => {
-        const res = await net.request(url, { timeoutMs });
-        const chunks = [];
-        for await (const c of res.stream) chunks.push(c);
-        return Buffer.concat(chunks).toString('utf8');
+        try {
+          const res = await net.request(url, { timeoutMs });
+          const chunks = [];
+          for await (const c of res.stream) chunks.push(c);
+          return { status: res.status, text: Buffer.concat(chunks).toString('utf8') };
+        } catch (err) {
+          if (err && err.kind === 'http' && typeof err.status === 'number') return { status: err.status, text: '' };
+          if (err && err.kind === 'timeout') err.code = 'timeout';
+          throw err;
+        }
       }
     : undefined;
 
