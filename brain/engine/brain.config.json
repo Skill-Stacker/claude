@@ -1,0 +1,25 @@
+{
+  "_help": "Config for the local Brain index. Empty vault_path/db_path use safe defaults: vault_path = the folder above this one (the Brain root), db_path = ~/Brain-index/brain.db (outside the vault, so Google Drive does not sync a binary on every reindex). Paths may use ~ and environment variables.",
+
+  "vault_path": "",
+  "db_path": "",
+
+  "ignore_dirs": [
+    ".git",
+    ".obsidian",
+    ".trash",
+    "node_modules",
+    "__pycache__",
+    "Attachments",
+    "_legacy-2026-09-02",
+    "Josh needs to delete me"
+  ],
+
+  "embedding": {
+    "_help": "Backend-later. Leave provider 'none' for keyword-only search. Set it to 'local-http' and point endpoint/model at a LOCAL embedding server (llama.cpp server or Ollama, OpenAI-compatible /v1/embeddings) to turn on semantic search. Nothing here should be a cloud endpoint; memory does not leave the machine.",
+    "provider": "none",
+    "endpoint": "http://127.0.0.1:8080/v1/embeddings",
+    "model": "nomic-embed-text",
+    "api_key": ""
+  }
+}

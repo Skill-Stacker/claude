@@ -1,0 +1,7 @@
+# The index database is derived and rebuildable; never commit it.
+__pycache__/
+*.pyc
+*.db
+*.db-wal
+*.db-shm
+.brain-index/
