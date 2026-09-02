@@ -10,7 +10,7 @@
   },
   "scripts": {
     "start": "node app/server.js",
-    "test": "node --test tests/",
+    "test": "node --test \"tests/**/*.test.js\"",
     "smoke": "node tools/smoke/run.mjs",
     "build:release": "node tools/build-release.mjs",
     "build:installer": "node tools/build-installer.mjs"
