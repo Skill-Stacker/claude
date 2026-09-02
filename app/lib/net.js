@@ -296,14 +296,17 @@ function openProxyTunnel(proxyUrl, targetHost, targetPort, timeoutMs, signal) {
       if (signal) signal.removeEventListener('abort', onAbort);
     };
 
+    // Node fires 'connect' for every reply to a CONNECT request, success or
+    // not; 'response' never fires here. A non-2xx status means the proxy
+    // rejected the tunnel, so the socket is unusable.
     req.on('connect', (res, socket) => {
       cleanup();
-      resolve(socket);
-    });
-    req.on('response', (res) => {
-      cleanup();
-      res.resume();
-      reject(proxyStatusError(res.statusCode));
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        resolve(socket);
+      } else {
+        socket.destroy();
+        reject(proxyStatusError(res.statusCode));
+      }
     });
     req.on('timeout', () => {
       req.destroy();
@@ -352,8 +355,12 @@ function requestOverSocket(socket, urlObj, method, headers) {
     const req = http.request({
       method,
       path: urlObj.pathname + urlObj.search,
-      headers: { ...headers, Host: urlObj.host },
+      headers: { ...headers, Host: urlObj.host, Connection: 'close' },
       createConnection: () => socket,
+      // No agent: createConnection only takes effect without one, and we
+      // want this one-off tunneled socket closed after this single
+      // request, not pooled for reuse.
+      agent: false,
     });
     req.on('error', reject);
     req.on('response', (res) => resolve(res));

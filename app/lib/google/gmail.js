@@ -15,7 +15,7 @@
 
 import { ImapFlow } from 'imapflow';
 import { createTransport } from 'nodemailer';
-import { buildMessageId, buildReplyMime, validateAppPassword } from './mime.js';
+import { buildMessageId, buildReplyMime, htmlToText, snippetOf, validateAppPassword } from './mime.js';
 
 // ---------------------------------------------------------------------------
 // Errors
@@ -331,16 +331,8 @@ async function downloadBestText(client, msg, bodyCap) {
   }
 
   let text = await readDownloadStream(downloaded, Math.max(bodyCap * 4, 8192));
-  if (chosen.type === 'text/html') text = htmlToTextLazy(text);
+  if (chosen.type === 'text/html') text = htmlToText(text);
   return text.slice(0, bodyCap);
-}
-
-// mime.js's htmlToText, imported lazily to keep the import list at the top
-// tidy; this is just a thin indirection so gmail.js has one obvious place
-// that turns HTML bodies into plain text.
-import { htmlToText, snippetOf } from './mime.js';
-function htmlToTextLazy(html) {
-  return htmlToText(html);
 }
 
 function safeJsonParse(text, fallback) {

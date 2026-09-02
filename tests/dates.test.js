@@ -287,7 +287,7 @@ describe('spokenDate()', () => {
   test('adds the year only when it differs from now', () => {
     assert.equal(
       spokenDate(dt('2027-01-05T09:00:00'), { now: NOW_DT }),
-      'Tuesday, January fifth, 2027',
+      'Tuesday, January fifth, two thousand twenty seven',
     );
     assert.equal(
       spokenDate(dt('2026-12-25T09:00:00'), { now: NOW_DT }),

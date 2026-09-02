@@ -1,0 +1,10 @@
+{
+  "_comment": "StickOS user settings. Edit this file, save it, then run Start Button again to pick up changes. app_version: which app package release Start Button downloads and runs; build-installer keeps this in sync with the repo version. preferred_port: the port the app server tries first before walking upward if it is busy. model: which language model tag Scout loads. voice: the Kokoro voice used for speech. stt: which speech-to-text model listens to you. gpu: auto lets Scout pick the best available acceleration; set cpu or gpu to force one. speed_boost: trade a little quality for a faster reply when true.",
+  "app_version": "3.0.0-alpha.0",
+  "preferred_port": 47300,
+  "model": "qwen3.5:4b-q6_k_l",
+  "voice": "af_heart",
+  "stt": "moonshine-base",
+  "gpu": "auto",
+  "speed_boost": false
+}

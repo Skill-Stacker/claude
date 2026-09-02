@@ -114,6 +114,19 @@ function writeFlagsCache(paths, key, flags) {
   }
 }
 
+// Picks just the known flag keys out of an object, so a value read back
+// from the cache file (which also carries a probedAt timestamp) matches
+// the shape of a freshly computed one.
+function flagsShape(obj) {
+  return {
+    jinja: !!obj.jinja,
+    reasoningBudget: !!obj.reasoningBudget,
+    reasoningFormat: !!obj.reasoningFormat,
+    parallel: !!obj.parallel,
+    chatTemplateKwargs: !!obj.chatTemplateKwargs,
+  };
+}
+
 function parseHelpFlags(text) {
   return {
     jinja: /--jinja\b/.test(text),
@@ -178,10 +191,12 @@ export function createEngine({
     currentState = next;
     currentReason = extra.reason;
     currentGuidance = extra.guidance;
-    // Two spawn_enoent states in a row keep the streak; anything else
-    // (including a fresh attempt that lands on spawn_enoent only once)
-    // clears it, matching "after two repeats in a row".
-    if (next !== 'spawn_enoent') enoentStreak = 0;
+    // Two spawn_enoent outcomes in a row keep the streak; any other
+    // terminal outcome clears it, matching "after two repeats in a row".
+    // 'starting' and 'loading' are progress markers within an attempt
+    // that is still running, not an outcome, so they must not clear a
+    // streak carried over from the previous attempt.
+    if (next !== 'spawn_enoent' && next !== 'starting' && next !== 'loading') enoentStreak = 0;
     if (extra.reason) logLine(`engine: ${next} (${extra.reason})`);
     else logLine(`engine: ${next}`);
     if (bus && typeof bus.publish === 'function') {
@@ -195,7 +210,9 @@ export function createEngine({
     const key = engineCheck && engineCheck.sha256 ? engineCheck.sha256 : null;
     if (key) {
       const cached = readFlagsCache(paths)[key];
-      if (cached) return cached;
+      // Strip the probedAt bookkeeping field the cache file carries so a
+      // cache hit and a fresh probe return the exact same shape.
+      if (cached) return flagsShape(cached);
     }
     const binaryPath = engineBinaryPath(paths);
     const { stdout, stderr } = await runExecFile(execFile, binaryPath, ['--help'], { timeout: T.helpTimeoutMs });

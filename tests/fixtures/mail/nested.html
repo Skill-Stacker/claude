@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Ignore me</title>
+<style>
+body { font-family: sans-serif; color: red; }
+.hidden { display: none; }
+</style>
+<script>
+console.log("this should never appear in the output");
+</script>
+</head>
+<body>
+<div>
+  <h1>Grandma&rsquo;s Birthday</h1>
+  <p>Hi Alex,</p>
+  <p>Just a reminder &mdash; the party starts at 3&nbsp;pm on Saturday.<br>
+  Bring a jacket, it might be cold.</p>
+  <div class="details">
+    <p>What to bring:</p>
+    <ul>
+      <li>A card</li>
+      <li>Something to share &amp; enjoy</li>
+      <li>Your favorite <b>board game</b></li>
+    </ul>
+  </div>
+  <blockquote>
+    <p>"Family is everything" &ldquo;she always says&rdquo;</p>
+  </blockquote>
+  <table>
+    <tr><td>Time</td><td>3:00 pm</td></tr>
+    <tr><td>Place</td><td>123 Oak St</td></tr>
+  </table>
+  <p>See you there!</p>
+  <p class="hidden">Secret debug note, should still be stripped like any other tag.</p>
+</div>
+<!-- a trailing comment that should vanish -->
+</body>
+</html>

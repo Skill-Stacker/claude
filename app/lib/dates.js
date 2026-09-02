@@ -297,7 +297,7 @@ export function spokenDate(dt, { now, zone } = {}) {
   if (diffDays === -1) return 'yesterday';
   if (diffDays >= 2 && diffDays <= 6) return target.weekdayLong;
 
-  const yearSuffix = target.year !== ref.year ? `, ${target.year}` : '';
+  const yearSuffix = target.year !== ref.year ? `, ${numberToWords(target.year)}` : '';
   if (target.year === ref.year && target.month === ref.month) {
     return `${target.weekdayLong} the ${ordinalWord(target.day)}`;
   }

@@ -17,15 +17,18 @@ REM   NOTE FOR EDITORS: never "set" a variable and read it back
 REM   with %VAR% inside the same ( ... ) block -- cmd expands the
 REM   whole block before it runs, so you get an empty string.
 REM   That is why the setup steps below are :subroutines reached
-REM   with "call". Also: \" is not an escape in cmd, so no path or
-REM   argument in this file may end in a backslash right before a
-REM   closing quote, and the browser is never started through
-REM   "start" with two quoted arguments (it launches nothing and
-REM   still exits 0). See CLAUDE.md, "Launcher traps".
+REM   with "call". Also, a backslash placed right before a closing
+REM   quote is read as an escaped quote, not a path separator, so
+REM   no path or argument in this file may end that way, and the
+REM   browser is never started through "start" with two quoted
+REM   arguments in a row (it launches nothing and still exits 0).
+REM   See CLAUDE.md, "Launcher traps".
 REM ============================================================
 
+REM  %~dp0 always ends in a backslash, so this trim is unconditional
+REM  on purpose; nothing here compares against a lone backslash.
 set "ROOT=%~dp0"
-if "%ROOT:~-1%"=="\" set "ROOT=%ROOT:~0,-1%"
+set "ROOT=%ROOT:~0,-1%"
 
 REM ---- Node version pinned in app/manifest.json. build-installer
 REM ---- keeps the version and URL below in sync with that file;
@@ -223,9 +226,10 @@ goto :eof
 
 :write_opener
 REM  Opening the browser has to happen from a small helper file, not
-REM  from a "start" line right here: "start "" "exe" "arg"" with a
-REM  second quoted argument launches nothing at all and still exits
-REM  0. One quoted token to "start", pointed at a script that does
+REM  from a "start" line right here: giving the "start" command a
+REM  second quoted argument (its own quoted exe path plus a quoted
+REM  argument) launches nothing at all and still exits 0. One quoted
+REM  token to "start", pointed at a script that does
 REM  the real work, sidesteps that entirely. The helper waits for
 REM  state\port.txt (written by the app server once it is actually
 REM  listening) instead of guessing a delay, so a slow first run

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>StickOS Installer</title>
+<style>
+  :root{
+    --bg0:#140a24; --bg1:#26094a; --violet:#7b2ff7; --magenta:#c026d3;
+    --orange:#ff7a18; --amber:#ffb020; --ink:#f5e9ff; --muted:#b79fd4;
+    --card:rgba(40,16,66,.72); --border:rgba(255,255,255,.12);
+    --grad:linear-gradient(135deg,var(--violet) 0%,var(--magenta) 45%,var(--orange) 100%);
+    --ok:#39d98a; --bad:#ff6b6b;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;font-family:"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;color:var(--ink)}
+  body{background:
+    radial-gradient(1200px 700px at 12% -12%,rgba(123,47,247,.55),transparent 60%),
+    radial-gradient(1100px 800px at 112% 118%,rgba(255,122,24,.42),transparent 55%),
+    linear-gradient(160deg,var(--bg0),var(--bg1));min-height:100vh;padding:40px 20px 60px}
+  .wrap{max-width:720px;margin:0 auto}
+  .hero{text-align:center;margin-bottom:26px}
+  .logo{width:104px;height:104px;border-radius:26px;background:var(--grad);display:inline-flex;
+    align-items:center;justify-content:center;font-size:56px;box-shadow:0 20px 55px rgba(192,38,211,.5);
+    animation:pulse 2.4s ease-in-out infinite}
+  @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+  h1{font-size:34px;margin:16px 0 4px;letter-spacing:.3px}
+  h1 span{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .tag{color:var(--muted);font-size:15px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:20px;backdrop-filter:blur(16px);
+    box-shadow:0 26px 70px rgba(0,0,0,.45);padding:26px;margin-top:22px}
+  .step{display:flex;gap:14px;align-items:flex-start;margin-bottom:18px}
+  .step .n{flex:none;width:30px;height:30px;border-radius:99px;background:var(--grad);color:#fff;font-weight:800;
+    display:flex;align-items:center;justify-content:center;font-size:15px}
+  .step .tx{font-size:15px;line-height:1.5}
+  .step .tx b{color:#fff}
+  .btns{display:flex;flex-wrap:wrap;gap:12px;margin-top:6px}
+  button{font-family:inherit;font-size:15px;font-weight:700;border:none;border-radius:13px;cursor:pointer;padding:14px 20px}
+  .primary{background:var(--grad);color:#fff;box-shadow:0 12px 30px rgba(123,47,247,.4);flex:1;min-width:240px}
+  .primary:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
+  .ghost{background:rgba(255,255,255,.06);color:var(--ink);border:1px solid var(--border)}
+  .big{font-size:16px;padding:16px 22px}
+  .hint{font-size:12.5px;color:var(--muted);margin-top:8px}
+  .log{margin-top:18px;background:rgba(0,0,0,.32);border:1px solid var(--border);border-radius:12px;
+    padding:14px;font-family:ui-monospace,Consolas,monospace;font-size:12.5px;line-height:1.7;
+    max-height:200px;overflow:auto;display:none;white-space:pre-wrap}
+  .log.show{display:block}
+  .log .ok{color:var(--ok)} .log .bad{color:var(--bad)} .log .dim{color:var(--muted)}
+  .note{font-size:12.5px;color:var(--muted);line-height:1.6;background:rgba(255,122,24,.08);
+    border:1px solid rgba(255,122,24,.25);border-radius:12px;padding:12px 14px;margin-top:16px}
+  .note b{color:var(--amber)}
+  .banner{font-size:13px;line-height:1.6;background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.3);
+    border-radius:12px;padding:12px 14px;margin-top:16px;display:none}
+  .banner.show{display:block}
+  .files{margin-top:14px;font-size:12px;color:var(--muted)}
+  .files code{background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:5px;padding:1px 6px}
+  .foot{text-align:center;color:var(--muted);font-size:12px;margin-top:26px;line-height:1.6}
+  .success{display:none;margin-top:18px;background:rgba(57,217,138,.1);border:1px solid rgba(57,217,138,.35);
+    border-radius:14px;padding:18px}
+  .success.show{display:block}
+  .success h3{margin:0 0 8px;color:var(--ok)}
+  .success ol{margin:8px 0 0;padding-left:20px;font-size:13.5px;line-height:1.7}
+  .success code{background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:5px;padding:1px 6px}
+  h2.section{margin:0 0 10px;font-size:20px;color:#fff}
+  .qa b{color:#fff}
+  .qa p{font-size:14.5px;line-height:1.6;margin:0 0 14px}
+  .qa p:last-child{margin-bottom:0}
+</style>
+</head>
+<body onload="initInstaller()">
+<div class="wrap">
+  <div class="hero">
+    <div class="logo">🧭</div>
+    <h1>Put <span>StickOS</span> on your USB</h1>
+    <div class="tag">Scout, your private voice assistant, runs entirely from the stick. Nothing is installed on this computer.</div>
+  </div>
+
+  <div class="card">
+    <div class="step"><div class="n">1</div><div class="tx"><b>Plug in a USB stick.</b> Any empty stick works. Give it at least 5 GB free, since the AI engine, the model, and the voices land on it the first time it runs.</div></div>
+    <div class="step"><div class="n">2</div><div class="tx"><b>Click the button below.</b> Your browser will ask you to pick the USB stick. That pop-up is the permission. Choose your stick and StickOS writes itself onto it.</div></div>
+    <div class="step"><div class="n">3</div><div class="tx"><b>Open the stick and double-click the Start Button.</b> On <b>Windows</b> that is <code style="background:rgba(0,0,0,.3);padding:1px 6px;border-radius:5px">Start Button.bat</code>; on a <b>Mac</b> it is <code style="background:rgba(0,0,0,.3);padding:1px 6px;border-radius:5px">Start Button.command</code>. That one double-click is the whole setup: the first run downloads about five gigabytes and shows its progress, then Scout opens in your browser. After that it starts in seconds.</div></div>
+
+    <div class="btns">
+      <button class="primary big" id="installBtn" onclick="installToUSB()">Install StickOS to my USB</button>
+      <button class="ghost big" id="zipBtn" onclick="downloadZip()">Download as ZIP</button>
+    </div>
+    <div class="hint" id="hint">Direct-to-USB works in Chrome and Edge. In another browser, use "Download as ZIP", then drag the folder onto your USB stick.</div>
+
+    <div class="banner" id="iframeBanner">You are viewing this inside a preview. The direct-to-USB picker is blocked in an embedded frame, so open this page from your own browser tab to use it (the ZIP button still works here).</div>
+
+    <div class="log" id="log"></div>
+
+    <div class="success" id="success">
+      <h3>StickOS is on your USB</h3>
+      <div style="font-size:13.5px;color:var(--ink)">Now, to start it:</div>
+      <ol>
+        <li>Open the USB stick in your file browser and open the <code>AI-on-a-Stick</code> folder.</li>
+        <li>On Windows, double-click <code>Start Button.bat</code>. On a Mac, double-click <code>Start Button.command</code>.</li>
+        <li>The first time, it downloads about five gigabytes (the AI engine, the model, and the voices), then Scout opens in your browser, ready to talk.</li>
+      </ol>
+    </div>
+
+    <div class="note"><b>Why isn't the whole thing in this download?</b> This installer only writes a few small files, the ones that start everything. <code style="background:rgba(0,0,0,.3);padding:1px 5px;border-radius:5px">Start Button</code> fetches the rest itself the first time it runs. That keeps this page small and quick to load.</div>
+
+    <div class="note" style="background:rgba(123,47,247,.09);border-color:rgba(123,47,247,.3)"><b style="color:#c9a9ff">On a Mac?</b> If <code style="background:rgba(0,0,0,.3);padding:1px 5px;border-radius:5px">Start Button.command</code> opens in a text editor instead of running, right-click it in Finder and choose Open, once. macOS blocks scripts downloaded from the web until you approve them by hand. Works on Windows and Mac from the same stick.</div>
+
+    <div class="files" id="fileList"></div>
+  </div>
+
+  <div class="card qa">
+    <h2 class="section">What Scout actually does</h2>
+    <p>Scout is a voice assistant that lives on the stick. Hold a key, ask a question, hear the answer. It runs a small AI model on the computer in front of you, not in the cloud.</p>
+    <p>Once it is set up, Scout can also read your Google Calendar and check Gmail, without ever showing you a Google login screen; that part is set up once, with a Google App Password and a private calendar link, both yours to remove at any time.</p>
+    <p>Before Scout sends an email or creates a calendar event, it reads the exact message or event back to you and waits for you to say yes. It never deletes anything, and it never writes without asking first.</p>
+  </div>
+
+  <div class="card qa">
+    <h2 class="section">Questions people ask</h2>
+    <p><b>Does it need the internet to work?</b><br>Only for the first run, to download the AI engine, the model, and the voices. After that it works offline, except when it checks Gmail or your calendar.</p>
+    <p><b>Is it private?</b><br>The AI server only answers on this computer, at 127.0.0.1, so nothing outside this machine can reach it. Every time Scout does reach outside (mail or calendar), it shows up in the "What Scout just did" panel.</p>
+    <p><b>Do I need to install anything on my computer?</b><br>No. Everything lives on the USB stick. Your computer runs it, but nothing is copied onto your hard drive.</p>
+    <p><b>What if I don't have a spare USB stick handy?</b><br>Use "Download as ZIP" instead, then copy the unzipped folder onto a stick whenever you are ready.</p>
+  </div>
+
+  <div class="foot">
+    Everything StickOS writes stays on the USB stick. The AI server answers only on <b>127.0.0.1</b>.<br>
+    Prefer to do it by hand? Copy the <code>AI-on-a-Stick</code> folder onto the stick yourself. Same result.
+  </div>
+</div>
+
+<!-- ===================== EMBEDDED FILES (written to the USB) ===================== -->
+<!-- STICKOS_PAYLOAD_FILES -->
+
+<!-- ===================== INSTALLER LOGIC ===================== -->
+<script id="installer-logic">
+/* Collect embedded payload files (path, content, original line-ending). */
+function collectFiles(){
+  const nodes=document.querySelectorAll('script[type="text/plain"][data-path]');
+  const out=[];
+  nodes.forEach(n=>{
+    let c=n.textContent.replace(/^\r?\n/,"");             // drop the one leading newline from formatting
+    c=c.split("<\\/script>").join("<\/script>");           // un-escape the closing tag
+    c=c.replace(/\r\n/g,"\n").replace(/\r/g,"\n");          // normalise, defensively
+    if(n.getAttribute("data-eol")==="crlf") c=c.replace(/\n/g,"\r\n");
+    out.push({path:n.getAttribute("data-path"),content:c});
+  });
+  return out;
+}
+
+/* logging */
+function logLine(html,cls){const l=document.getElementById("log");if(!l)return;l.classList.add("show");
+  l.innerHTML+=(cls?'<span class="'+cls+'">':"<span>")+html+"</span>\n";l.scrollTop=l.scrollHeight;}
+function clearLog(){const l=document.getElementById("log");if(!l)return;l.innerHTML="";l.classList.remove("show");}
+
+/* ---- Path A: write straight to the USB (Chrome, Edge) ---- */
+async function installToUSB(){
+  clearLog();
+  if(!window.showDirectoryPicker){
+    logLine('This browser can’t write directly to a drive. Use "Download as ZIP" below.',"bad");
+    return;
+  }
+  const FILES=collectFiles();
+  let dir;
+  try{ dir=await window.showDirectoryPicker({mode:"readwrite",id:"stickos-usb"}); }
+  catch(e){ logLine("Folder picker closed"+(e&&e.message?(": "+e.message):"")+". Nothing was written.","dim"); return; }
+  try{
+    logLine("Writing StickOS to: "+dir.name,"dim");
+    for(const f of FILES){
+      const parts=f.path.split("/");let d=dir;
+      for(let i=0;i<parts.length-1;i++){ d=await d.getDirectoryHandle(parts[i],{create:true}); }
+      const fh=await d.getFileHandle(parts[parts.length-1],{create:true});
+      const w=await fh.createWritable();await w.write(f.content);await w.close();
+      logLine("done: "+f.path,"ok");
+    }
+    logLine("Done.","ok");
+    const s=document.getElementById("success");
+    if(s){s.classList.add("show");s.scrollIntoView({behavior:"smooth"});}
+  }catch(e){
+    logLine("Write failed: "+(e&&e.message?e.message:e),"bad");
+    logLine('Tip: pick a drive you can write to, or use "Download as ZIP".',"dim");
+  }
+}
+
+/* ---- Path B: build a real .zip in-browser (works everywhere, offline) ---- */
+function crc32(bytes){
+  if(!crc32.t){crc32.t=[];for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);crc32.t[n]=c>>>0;}}
+  let crc=0xFFFFFFFF;for(let i=0;i<bytes.length;i++)crc=crc32.t[(crc^bytes[i])&0xFF]^(crc>>>8);
+  return (crc^0xFFFFFFFF)>>>0;
+}
+function buildZip(files){
+  const enc=new TextEncoder(),parts=[],central=[];let offset=0;
+  const u16=v=>[v&0xFF,(v>>8)&0xFF],u32=v=>[v&0xFF,(v>>8)&0xFF,(v>>16)&0xFF,(v>>24)&0xFF];
+  for(const f of files){
+    const name=enc.encode(f.path),data=enc.encode(f.content),crc=crc32(data),sz=data.length;
+    const lh=[].concat(u32(0x04034b50),u16(20),u16(0x0800),u16(0),u16(0),u16(0x21),
+      u32(crc),u32(sz),u32(sz),u16(name.length),u16(0));
+    parts.push(new Uint8Array(lh),name,data);
+    const cd=[].concat(u32(0x02014b50),u16(20),u16(20),u16(0x0800),u16(0),u16(0),u16(0x21),
+      u32(crc),u32(sz),u32(sz),u16(name.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(offset));
+    central.push({h:new Uint8Array(cd),n:name});
+    offset+=lh.length+name.length+data.length;
+  }
+  const cdStart=offset;let cdSize=0;
+  for(const c of central){parts.push(c.h,c.n);cdSize+=c.h.length+c.n.length;}
+  const eocd=[].concat(u32(0x06054b50),u16(0),u16(0),u16(central.length),u16(central.length),
+    u32(cdSize),u32(cdStart),u16(0));
+  parts.push(new Uint8Array(eocd));
+  return new Blob(parts,{type:"application/zip"});
+}
+function downloadZip(){
+  clearLog();
+  try{
+    const FILES=collectFiles();
+    const blob=buildZip(FILES);
+    const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="StickOS.zip";
+    document.body.appendChild(a);a.click();
+    setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1500);
+    logLine("StickOS.zip created ("+FILES.length+" files).","ok");
+    logLine("Open the ZIP, drag the AI-on-a-Stick folder onto your USB stick, then double-click Start Button.","dim");
+    const s=document.getElementById("success");
+    if(s)s.classList.add("show");
+  }catch(e){ logLine("ZIP build failed: "+(e&&e.message?e.message:e),"bad"); }
+}
+
+/* show the file list */
+function renderFileList(){
+  const fl=document.getElementById("fileList");
+  if(!fl)return;
+  const FILES=collectFiles();
+  fl.innerHTML="Installs "+FILES.length+" files: "+FILES.map(f=>"<code>"+f.path.replace("AI-on-a-Stick/","")+"</code>").join(" ");
+}
+
+/* environment hints, run once the page has loaded */
+function initInstaller(){
+  renderFileList();
+  const inFrame=(window.self!==window.top);
+  if(inFrame){const b=document.getElementById("iframeBanner");if(b)b.classList.add("show");}
+  if(!window.showDirectoryPicker){
+    const b=document.getElementById("installBtn");
+    if(b){b.disabled=true;b.textContent="Direct install (needs Chrome or Edge)";}
+    const h=document.getElementById("hint");
+    if(h)h.innerHTML='Your browser doesn’t support direct-to-USB writing, so use <b>Download as ZIP</b>, then drag the folder onto your USB stick.';
+  }
+}
+</script>
+</body>
+</html>
