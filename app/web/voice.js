@@ -220,7 +220,18 @@ function detectPlatform() {
 }
 
 function focusChatInput() {
-  const candidate = document.querySelector('#chat-input, [data-chat-input], textarea#chat, input#chat');
+  // The chat window builds its own textarea with no id (aria-label="Message
+  // Scout" is the stable handle); open the window first in case it is
+  // closed or minimized, then focus it.
+  const chat = window.StickOS && window.StickOS.windows && window.StickOS.windows.chat;
+  if (chat && typeof chat.open === 'function') {
+    try {
+      chat.open();
+    } catch {
+      /* page's problem, not ours */
+    }
+  }
+  const candidate = document.querySelector('textarea[aria-label="Message Scout"], #chat-input, [data-chat-input]');
   if (candidate && typeof candidate.focus === 'function') {
     candidate.focus();
   } else {
