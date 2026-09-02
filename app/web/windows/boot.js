@@ -151,12 +151,33 @@ export function run(host, { bootEl, onDone }) {
       sub.textContent = 'Double-checking the download';
       log.textContent = "This may take a few minutes the first time while your security software checks the new files, that's normal.";
       renderSteps(data.steps);
-    } else if (phase === 'ready') {
-      sub.textContent = 'Starting Scout';
-      log.textContent = 'Everything is downloaded. Starting the engine now.';
+    } else if (phase === 'probing') {
+      sub.textContent = 'Checking your hardware';
+      log.textContent = 'Looking for a graphics card to speed things up.';
       renderSteps(data.steps);
-      const line = gpuLine(data.gpu);
+      setNote(gpuLine(data.gpu) || data.message);
+    } else if (phase === 'starting') {
+      sub.textContent = 'Starting the engine';
+      log.textContent = 'Starting the engine, this can take up to a minute the first time.';
+      renderSteps(data.steps);
+      const line = gpuLine(data.gpu) || data.message;
       if (line) setNote(line);
+    } else if (phase === 'ready') {
+      sub.textContent = 'Ready';
+      log.textContent = 'Scout is ready.';
+      renderSteps(data.steps);
+      // The 'engine' SSE channel (see renderEngine below) is what normally
+      // fades this overlay out; this is a redundant, idempotent safety net
+      // in case that specific event was ever missed.
+      finish();
+    } else if (phase === 'failed') {
+      const failedStep = Array.isArray(data.steps) ? data.steps.find((s) => s.state === 'failed') : null;
+      sub.textContent = 'Something went wrong';
+      log.textContent = failedStep
+        ? (failedStep.label || failedStep.id) + ' could not finish. ' + (data.message || '')
+        : data.message || 'Something went wrong getting Scout ready.';
+      renderSteps(data.steps);
+      retryBtn.hidden = false;
     } else {
       sub.textContent = data.message || 'Getting ready';
     }

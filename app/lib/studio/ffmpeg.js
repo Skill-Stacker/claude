@@ -10,12 +10,12 @@
 //   const info = await probe(ffprobe, '/path/clip.mp4');
 //   const { code, stderr } = await run(ffmpeg, ['-i', 'in.mp4', '-c', 'copy', 'out.mp4'], { durationSec: info.durationSec });
 
-import { spawn, execFile } from 'node:child_process';
+import { spawn as nodeSpawn, execFile as nodeExecFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { existsSync, mkdirSync, readdirSync, chmodSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 
-const execFileAsync = promisify(execFile);
+const execFileAsync = promisify(nodeExecFile);
 
 // Studio phase B has not run a real download-and-encode pass on a Mac yet
 // (no darwin-arm64 entry in manifest.json's studio.ffmpeg table), so the
@@ -176,7 +176,7 @@ function parseProgressChunk(chunk, durationSec, onProgress) {
 // progress, and settles once the process exits. `signal` (an AbortSignal)
 // and `timeoutMs` both kill the child rather than just reject the promise,
 // so a caller can rely on the process actually being gone.
-export function run(exe, args, { onProgress, timeoutMs, signal, durationSec = 0, cwd } = {}) {
+export function run(exe, args, { onProgress, timeoutMs, signal, durationSec = 0, cwd, spawn = nodeSpawn } = {}) {
   return new Promise((resolvePromise, reject) => {
     let child;
     try {
@@ -269,9 +269,9 @@ function parseFrameRate(rate) {
 // { durationSec, width, height, fps, hasAudio } is the contract video.js's
 // tools rely on; videoCodec/audioCodec ride along too since join() needs
 // them to decide copy-concat vs. a re-encoding fallback.
-export async function probe(ffprobe, file) {
+export async function probe(ffprobe, file, { execFile = execFileAsync } = {}) {
   const args = ['-v', 'error', '-print_format', 'json', '-show_streams', '-show_format', file];
-  const { stdout } = await execFileAsync(ffprobe, args, { maxBuffer: 16 * 1024 * 1024 });
+  const { stdout } = await execFile(ffprobe, args, { maxBuffer: 16 * 1024 * 1024 });
   const data = JSON.parse(stdout);
   const streams = Array.isArray(data.streams) ? data.streams : [];
   const format = data.format || {};

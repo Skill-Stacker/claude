@@ -101,12 +101,20 @@ export function wireMocks(app) {
     ],
     free: 40000000000,
     needed: 5000000000,
-    gpu: { available: true, detail: 'example graphics card' },
+    // The real app/lib/firstrun.js leaves this null until its own
+    // 'probing' phase, so this mock does too.
+    gpu: null,
     message: '',
   };
   let firstrunStarted = false;
 
-  async function runFirstrunSequence() {
+  // The first attempt walks preflight through verifying and then fails on
+  // the model step (a stand-in for the "this stick is losing data" check in
+  // the real app/lib/firstrun.js), the same way a real first run sometimes
+  // does on flaky hardware. Retrying it clears that step and completes the
+  // full sequence, probing and starting included, exactly like the real
+  // module's own retry() does.
+  async function runFirstrunSequence({ forceFailure = false } = {}) {
     firstrun.phase = 'downloading';
     bus.publish('firstrun', firstrun);
     for (const step of firstrun.steps) {
@@ -122,14 +130,36 @@ export function wireMocks(app) {
     }
     firstrun.phase = 'verifying';
     bus.publish('firstrun', firstrun);
-    await sleep(40);
+    await sleep(30);
+
+    if (forceFailure) {
+      const badStep = firstrun.steps.find((s) => s.id === 'model');
+      badStep.state = 'failed';
+      badStep.message = 'This file did not match what Scout expected.';
+      firstrun.phase = 'failed';
+      firstrun.message = 'This stick seems to be losing data as more is written to it. Try a different stick.';
+      bus.publish('firstrun', firstrun);
+      return;
+    }
+
+    firstrun.phase = 'probing';
+    firstrun.gpu = { available: true, detail: 'example graphics card' };
+    firstrun.message = firstrun.gpu.available ? 'Using your graphics card' : 'Using your processor';
+    bus.publish('firstrun', firstrun);
+    await sleep(20);
+
+    firstrun.phase = 'starting';
+    bus.publish('firstrun', firstrun);
+    await sleep(20);
+
     firstrun.phase = 'ready';
+    firstrun.message = null;
     bus.publish('firstrun', firstrun);
 
     bus.publish('engine', { state: 'starting', port: app.port, guidance: null, lastLog: null, gpu: firstrun.gpu });
-    await sleep(30);
+    await sleep(20);
     bus.publish('engine', { state: 'loading', port: app.port, guidance: null, lastLog: null, gpu: firstrun.gpu });
-    await sleep(30);
+    await sleep(20);
     bus.publish('engine', { state: 'ready', port: app.port, guidance: null, lastLog: null, gpu: firstrun.gpu });
   }
 
@@ -139,13 +169,22 @@ export function wireMocks(app) {
   app.addRoute('POST', '/api/firstrun/start', (req, res, ctx) => {
     if (!firstrunStarted) {
       firstrunStarted = true;
-      runFirstrunSequence();
+      runFirstrunSequence({ forceFailure: true });
     }
     ctx.sendJson(200, firstrun);
   });
   app.addRoute('POST', '/api/firstrun/retry', (req, res, ctx) => {
-    firstrunStarted = true;
-    runFirstrunSequence();
+    for (const step of firstrun.steps) {
+      if (step.state === 'failed') {
+        step.state = 'pending';
+        step.message = null;
+        step.received = 0;
+        step.percent = 0;
+      }
+    }
+    firstrun.phase = 'preflight';
+    firstrun.message = null;
+    runFirstrunSequence({ forceFailure: false });
     ctx.sendJson(200, firstrun);
   });
 

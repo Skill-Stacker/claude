@@ -86,7 +86,17 @@ async function main() {
     await page.locator('#boot').waitFor({ state: 'visible', timeout: WAIT });
     await screenshot(page, 'boot');
 
-    log('checking the boot overlay hides');
+    // The mock's first attempt deliberately fails on the model step, the
+    // same way app/lib/firstrun.js can on real flaky hardware, so this
+    // exercises the 'failed' phase and its Try Again button before the
+    // retry walks probing and starting through to ready.
+    log('checking the boot overlay shows the failure and offers Try Again');
+    const retryBtn = page.locator('#bootRetryBtn');
+    await retryBtn.waitFor({ state: 'visible', timeout: WAIT });
+    await screenshot(page, 'boot-failed');
+    await retryBtn.click();
+
+    log('checking the boot overlay hides after the retry succeeds');
     await page.locator('#boot').waitFor({ state: 'hidden', timeout: WAIT });
 
     log('checking the desktop and the Scout window render');
