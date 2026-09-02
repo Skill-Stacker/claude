@@ -134,10 +134,32 @@ function resolveTzid(dateVal) {
   return tz;
 }
 
-function buildInstance(source, startDate, endDate, calendarName, rruleRaw) {
-  const allDay = !!(startDate && startDate.dateOnly) || source.datetype === 'date';
-  const startUtc = startDate.toISOString();
-  const endUtc = endDate.toISOString();
+// A Date built by node-ical from DTSTART;VALUE=DATE (an all-day date) is
+// constructed with the machine's local-time Date constructor, so reading it
+// back with .toISOString() would smuggle in the machine's zone. Reading it
+// back with local getters instead is the exact inverse of how it was built,
+// so it recovers the original calendar date under any process.env.TZ. We
+// then stamp that date as UTC midnight ourselves, which is how every other
+// all-day value in this module is represented.
+function toUtcIso(dateVal) {
+  if (dateVal && dateVal.dateOnly) {
+    const y = dateVal.getFullYear();
+    const m = dateVal.getMonth() + 1;
+    const d = dateVal.getDate();
+    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}T00:00:00.000Z`;
+  }
+  return dateVal.toISOString();
+}
+
+// `tzSource` carries the .tz/.dateOnly metadata to resolve the zone and the
+// all-day flag from. It defaults to `startDate`, but a plain RRULE
+// occurrence (from rrule.between()) carries neither, so callers pass the
+// master event's own `start` instead.
+function buildInstance(source, startDate, endDate, calendarName, rruleRaw, tzSource) {
+  const tzRef = tzSource || startDate;
+  const allDay = !!(tzRef && tzRef.dateOnly) || source.datetype === 'date';
+  const startUtc = toUtcIso(startDate);
+  const endUtc = toUtcIso(endDate);
   return {
     instanceId: `${source.uid}@${startUtc}`,
     uid: source.uid,
@@ -148,7 +170,7 @@ function buildInstance(source, startDate, endDate, calendarName, rruleRaw) {
     startUtc,
     endUtc,
     allDay,
-    tzid: resolveTzid(startDate),
+    tzid: resolveTzid(tzRef),
     status: source.status ?? null,
     organizer: textVal(source.organizer),
     rruleRaw: rruleRaw ?? null,
@@ -178,7 +200,7 @@ function expandRecurring(master, from, to, calendarName, out) {
     }
 
     const endDate = new Date(occ.getTime() + baseDurationMs);
-    out.push(buildInstance(master, occ, endDate, calendarName, rruleRaw));
+    out.push(buildInstance(master, occ, endDate, calendarName, rruleRaw, master.start));
   }
 }
 
