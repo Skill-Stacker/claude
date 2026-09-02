@@ -1,0 +1,33 @@
+{
+  "name": "stickos",
+  "version": "3.0.0-alpha.0",
+  "description": "StickOS v3 / Scout: a voice-first personal assistant that runs from a USB stick. Local model, Gmail and Google Calendar without OAuth, nothing installed on the host.",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node app/server.js",
+    "test": "node --test tests/",
+    "smoke": "node tools/smoke/run.mjs",
+    "build:release": "node tools/build-release.mjs",
+    "build:installer": "node tools/build-installer.mjs"
+  },
+  "dependencies": {
+    "chrono-node": "2.10.1",
+    "imapflow": "1.7.8",
+    "kokoro-js": "1.2.1",
+    "luxon": "3.7.2",
+    "node-ical": "0.27.1",
+    "nodemailer": "9.1.1",
+    "sherpa-onnx-node": "1.13.7"
+  },
+  "optionalDependencies": {
+    "win-ca": "3.5.1"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  }
+}

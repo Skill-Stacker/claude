@@ -1,0 +1,75 @@
+{
+  "_comment": "Pinned first-run assets. sha256 null means self-pin: the downloader records the hash of the first download that passes every other check and refuses any later mismatch. Sizes are bytes. Never point at a floating tag.",
+  "schema": 1,
+  "node": {
+    "version": "24.20.0",
+    "shasums": "https://nodejs.org/dist/v24.20.0/SHASUMS256.txt",
+    "win-x64": { "url": "https://nodejs.org/dist/v24.20.0/node-v24.20.0-win-x64.zip", "size": 37539751, "sha256": null },
+    "darwin-arm64": { "url": "https://nodejs.org/dist/v24.20.0/node-v24.20.0-darwin-arm64.tar.gz", "size": 52813331, "sha256": null },
+    "linux-x64": { "url": "https://nodejs.org/dist/v24.20.0/node-v24.20.0-linux-x64.tar.xz", "size": 31838904, "sha256": null }
+  },
+  "engine": {
+    "name": "llamafile",
+    "version": "0.10.5",
+    "url": "https://github.com/mozilla-ai/llamafile/releases/download/0.10.5/llamafile-0.10.5",
+    "size": 350768862,
+    "sha256": "417bcc3348cd5162c2751812fc0ea2f6e79e89e7be6f17e8401ed95de2ed4246",
+    "min_mb": 300
+  },
+  "model": {
+    "tag": "qwen3.5:4b-q6_k_l",
+    "primary": {
+      "file": "qwen3.5-4b-q6_k_l.gguf",
+      "url": "https://huggingface.co/bartowski/Qwen_Qwen3.5-4B-GGUF/resolve/main/Qwen_Qwen3.5-4B-Q6_K_L.gguf",
+      "size": 3959316448,
+      "sha256": "e98eccd3da7d25ccb1732306284fca332130a77e3f29ee05ea138ba8d86c805e",
+      "min_mb": 3500
+    },
+    "fallback": {
+      "file": "qwen3.5-4b-q4_k_m.gguf",
+      "url": "https://huggingface.co/bartowski/Qwen_Qwen3.5-4B-GGUF/resolve/main/Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+      "size": null,
+      "sha256": null,
+      "min_mb": 2800
+    }
+  },
+  "stt": {
+    "default": "moonshine-base",
+    "moonshine-base": {
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-moonshine-base-en-int8.tar.bz2",
+      "size": null,
+      "sha256": null,
+      "dir": "sherpa-onnx-moonshine-base-en-int8"
+    },
+    "moonshine-tiny": {
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-moonshine-tiny-en-int8.tar.bz2",
+      "size": null,
+      "sha256": null,
+      "dir": "sherpa-onnx-moonshine-tiny-en-int8"
+    },
+    "whisper-base": {
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-base.en.tar.bz2",
+      "size": null,
+      "sha256": null,
+      "dir": "sherpa-onnx-whisper-base.en"
+    }
+  },
+  "tts": {
+    "engine": "kokoro-js",
+    "model_id": "onnx-community/Kokoro-82M-v1.0-ONNX",
+    "dtype": "fp32",
+    "voice": "af_heart",
+    "_comment": "kokoro-js fetches the model through @huggingface/transformers into voices/hf-cache on the stick (HF_HOME). Roughly 326 MB."
+  },
+  "studio": {
+    "ffmpeg": {
+      "win-x64": { "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/n9.0/ffmpeg-n9.0-latest-win64-gpl-9.0.zip", "size": null, "sha256": null },
+      "linux-x64": { "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/n9.0/ffmpeg-n9.0-latest-linux64-gpl-9.0.tar.xz", "size": null, "sha256": null },
+      "darwin-arm64": null
+    },
+    "sdcpp": {
+      "_comment": "Pin one master-<n>-<hash> tag before Studio phase C ships.",
+      "tag": null
+    }
+  }
+}

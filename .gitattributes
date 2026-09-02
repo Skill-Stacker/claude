@@ -1,0 +1,6 @@
+* text=auto eol=lf
+*.bat text eol=crlf
+payload/README.txt text eol=crlf
+*.png binary
+*.wav binary
+*.gguf binary

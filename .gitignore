@@ -1,0 +1,17 @@
+node_modules/
+bin/
+models/
+voices/
+data/
+sessions/
+memory.md
+state/
+dist/
+tmp/
+cache/
+chats/
+*.incomplete
+*.log
+.DS_Store
+Thumbs.db
+settings.local.json
