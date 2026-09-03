@@ -75,9 +75,14 @@ if [ "${1:-}" = "--check" ] || [ "${1:-}" = "-c" ]; then
   if command -v rclone >/dev/null 2>&1; then
     echo "  rclone remotes   : $(rclone listremotes 2>/dev/null | tr '\n' ' ')"
     if rclone listremotes 2>/dev/null | grep -qx "${REMOTE}:"; then
-      if rclone lsd "${REMOTE}:${SUBPATH}" >/dev/null 2>&1
-      then echo "  ${REMOTE}:${SUBPATH}      : visible"
-      else echo "  ${REMOTE}:${SUBPATH}      : NOT VISIBLE"; fi
+      if CHKERR="$(rclone lsd "${REMOTE}:" 2>&1 >/dev/null)"; then
+        if rclone lsd "${REMOTE}:${SUBPATH}" >/dev/null 2>&1
+        then echo "  ${REMOTE}:${SUBPATH}      : visible"
+        else echo "  ${REMOTE}:${SUBPATH}      : folder not found (Drive itself is reachable)"; fi
+      else
+        echo "  ${REMOTE}: sign in      : BROKEN -> $CHKERR"
+        echo "  fix              : run this script again, it will reconnect for you"
+      fi
     fi
   fi
   echo "  mount            : $MOUNT $(mounted && echo '(mounted)' || echo '(not mounted)')"
@@ -143,9 +148,7 @@ fi
 # ---------------------------------------------------------------------------
 say "Connect Google Drive (rclone remote '$REMOTE')"
 
-if rclone listremotes 2>/dev/null | grep -qx "${REMOTE}:"; then
-  echo "Remote '${REMOTE}:' already exists, leaving it alone."
-else
+create_remote() {
   echo "A browser will open so you can sign in to Google."
   echo "This is the one thing you have to do by hand. Everything after is automatic."
   echo
@@ -155,13 +158,52 @@ else
            "No browser on this box? Run this on a machine that has one:" \
            "  rclone authorize \"drive\"" \
            "then copy the token here and run:  rclone config"
+}
+
+if rclone listremotes 2>/dev/null | grep -qx "${REMOTE}:"; then
+  echo "Remote '${REMOTE}:' already exists. Checking that it still works ..."
+else
+  create_remote
   echo "Created rclone remote '${REMOTE}:'."
 fi
 
+# Does the remote actually answer? A sign in that was cancelled or that expired
+# leaves a [gdrive] stanza with no usable token, and listremotes still reports
+# it as present. Without this probe a dead token looks exactly like a missing
+# folder, and the script would confidently blame the wrong thing.
+# ERR="$(cmd 2>&1 >/dev/null)" captures stderr only and keeps rclone's status.
+if ! ERR="$(rclone lsd "${REMOTE}:" 2>&1 >/dev/null)"; then
+  case "$ERR" in
+    *token*|*oauth*|*auth*|*401*|*invalid_grant*|*"config reconnect"*)
+      echo "The Google sign in for '${REMOTE}:' never finished, or it has expired."
+      echo "Opening the browser again to reconnect ..."
+      # Keep a one-time copy of rclone.conf before repairing it.
+      RCONF="$(rclone config file 2>/dev/null | tail -1)"
+      if [ -f "$RCONF" ] && [ ! -f "$RCONF.before-brain-bootstrap" ]; then
+        cp "$RCONF" "$RCONF.before-brain-bootstrap" 2>/dev/null || true
+        echo "(saved a copy of your rclone config at $RCONF.before-brain-bootstrap)"
+      fi
+      rclone --auto-confirm config reconnect "${REMOTE}:" \
+        || rclone config reconnect "${REMOTE}:" \
+        || { rclone config delete "$REMOTE" && create_remote; } \
+        || die "Could not reconnect '${REMOTE}:'." "rclone said:" "  $ERR"
+      ERR="$(rclone lsd "${REMOTE}:" 2>&1 >/dev/null)" \
+        || die "Still cannot reach Google Drive after signing in." "rclone said:" "  $ERR"
+      ;;
+    *)
+      die "Could not reach Google Drive at all (this is not a folder name problem)." \
+          "rclone said:" "  $ERR" \
+          "Check the network, then run this again."
+      ;;
+  esac
+fi
+
 echo "Looking for ${REMOTE}:${SUBPATH} ..."
-if ! rclone lsd "${REMOTE}:${SUBPATH}" >/dev/null 2>&1; then
-  echo "Could not see ${REMOTE}:${SUBPATH}. Top level of your Drive:" >&2
-  rclone lsd "${REMOTE}:" 2>/dev/null | sed 's/^/    /' >&2 || true
+if ! ERR="$(rclone lsd "${REMOTE}:${SUBPATH}" 2>&1 >/dev/null)"; then
+  echo "Could not see ${REMOTE}:${SUBPATH}. rclone said:" >&2
+  echo "  $ERR" >&2
+  echo "Top level of your Drive:" >&2
+  rclone lsd "${REMOTE}:" 2>&1 | sed 's/^/    /' >&2 || true
   die "The folder '${SUBPATH}' is not at the root of that Drive." \
       "If your vault folder has another name or lives deeper, say so:" \
       "  SUBPATH='Some Folder/Brain' bash $0"
@@ -171,7 +213,24 @@ echo "Found it."
 # ---------------------------------------------------------------------------
 say "Mount the vault at $MOUNT"
 
-mkdir -p "$MOUNT"
+# An rclone mount that died without unmounting (crash, kill, a reboot with no
+# linger, an earlier failed attempt) leaves $MOUNT as a stale FUSE endpoint.
+# Every stat on it returns ENOTCONN, so even "mkdir -p" fails. Do NOT guard this
+# with [ -e "$MOUNT" ]: test uses stat(), so -e is FALSE on a stale endpoint and
+# the guard would never fire. Check /proc/mounts instead. Stopping the unit is
+# not enough on its own: ExecStop does not run when the main process is gone.
+systemctl --user stop brain-drive.service >/dev/null 2>&1 || true
+if grep -qs " ${MOUNT} " /proc/mounts && ! ls "$MOUNT" >/dev/null 2>&1; then
+  echo "Clearing a dead mount left behind at $MOUNT ..."
+  "$(fuser_bin)" -uz "$MOUNT" 2>/dev/null || sudo umount -l "$MOUNT" 2>/dev/null || true
+fi
+
+mkdir -p "$MOUNT" 2>/dev/null || die "Cannot use $MOUNT." \
+  "A dead mount is probably still stuck on it (Transport endpoint is not connected)." \
+  "Clear it, then run this again:" \
+  "  $(fuser_bin) -uz \"$MOUNT\"" \
+  "  (or, if that will not do it:  sudo umount -l \"$MOUNT\")"
+
 if ! mounted && [ -n "$(ls -A "$MOUNT" 2>/dev/null || true)" ]; then
   die "$MOUNT already has files in it and is not a mount." \
       "rclone will not mount over a non-empty folder." \
