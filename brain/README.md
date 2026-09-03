@@ -30,15 +30,28 @@ installs a timer that refreshes the search index every 30 minutes, builds the
 index once, and registers the MCP server into Claude Desktop, Claude Code, and
 Cursor.
 
+`bootstrap-linux.sh` is self-contained: it is the only file you need, so you can
+grab just it and run it. No clone, no chmod, nothing to unpack.
+
 ```
-cd <repo>/brain && bash bootstrap-linux.sh
+curl -fsSL https://raw.githubusercontent.com/Skill-Stacker/claude/claude/brain-migration-google-drive-cbtnq6/brain/bootstrap-linux.sh -o ~/bootstrap-brain.sh
+bash ~/bootstrap-brain.sh
 ```
 
 The only thing you type is one Google sign in (rclone needs it, once). Nothing
 is uploaded; the database stays local at `~/Brain-index`. It is safe to re-run.
+
+If something goes wrong, this reports the state of every piece and changes
+nothing:
+
+```
+bash ~/bootstrap-brain.sh --check
+```
+
 Want a local vault with no Google Drive? Use `setup-brain.sh` instead. The
 pieces are also available as separate scripts (`mount-brain-drive.sh`,
-`setup-brain-services.sh`, `wire-brain-mcp.sh`) if you want to run just one.
+`setup-brain-services.sh`, `wire-brain-mcp.sh`) if you ever want to run just
+one, but the bootstrap does not need them.
 
 ## Read these first
 
