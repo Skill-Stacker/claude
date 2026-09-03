@@ -22,6 +22,24 @@ anything into the cloud.
    no cloud database and no API key. This keeps the vault's standing rule that
    memory does not leave the machine.
 
+## Set up on a Linux box (one command)
+
+On a Linux machine (like the SER8), one script does the whole thing: installs
+rclone, connects Google Drive, mounts your `Brain` vault at `~/BrainDrive`,
+installs a timer that refreshes the search index every 30 minutes, builds the
+index once, and registers the MCP server into Claude Desktop, Claude Code, and
+Cursor.
+
+```
+cd <repo>/brain && bash bootstrap-linux.sh
+```
+
+The only thing you type is one Google sign in (rclone needs it, once). Nothing
+is uploaded; the database stays local at `~/Brain-index`. It is safe to re-run.
+Want a local vault with no Google Drive? Use `setup-brain.sh` instead. The
+pieces are also available as separate scripts (`mount-brain-drive.sh`,
+`setup-brain-services.sh`, `wire-brain-mcp.sh`) if you want to run just one.
+
 ## Read these first
 
 - `AGENTS.md` is the contract for any AI working in the vault. Read it before

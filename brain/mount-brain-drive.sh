@@ -13,6 +13,7 @@
 
 set -euo pipefail
 
+USER="${USER:-$(id -un)}"   # some shells (su, cron) do not set $USER
 REMOTE="${1:-gdrive}"
 MOUNT="${2:-$HOME/BrainDrive}"
 SUBPATH="Brain"
