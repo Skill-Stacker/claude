@@ -40,6 +40,7 @@ UNITS="$HOME/.config/systemd/user"
 DB="$HOME/Brain-index/brain.db"
 ENGINE="$MOUNT/engine"                    # the engine as shipped in the vault
 LOCAL_ENGINE="$HOME/.local/share/brain-engine"   # the copy we actually run
+REPO_RAW="${REPO_RAW:-https://raw.githubusercontent.com/Skill-Stacker/claude/claude/brain-migration-google-drive-cbtnq6/brain}"
 
 STEP=0
 say() { STEP=$((STEP + 1)); printf '\n=== %d/6  %s ===\n' "$STEP" "$1"; }
@@ -306,12 +307,39 @@ mkdir -p "$BIN" "$LOCAL_ENGINE"
 # exits, and the client reports "Server disconnected / Connection closed".
 # The engine is code, so a local copy is cheap; the vault stays the source of
 # truth and is read through BRAIN_VAULT below.
-if [ -f "$ENGINE/brain_mcp.py" ]; then
-  cp "$ENGINE"/*.py "$ENGINE/schema.sql" "$LOCAL_ENGINE/" 2>/dev/null || true
+# Where the engine code comes from, best first:
+#   1. this repo, so a re-run always installs the current, tested engine
+#   2. the copy in the vault, which is what works with no network
+# Only code is fetched, never notes, and nothing is uploaded either way.
+ENGINE_FILES="brainctl.py brain_index.py brain_search.py brain_embed.py brain_mcp.py schema.sql brain.config.json"
+ENGINE_SRC=""
+
+STAGE="$(mktemp -d)"
+if command -v curl >/dev/null 2>&1; then
+  ok=yes
+  for f in $ENGINE_FILES; do
+    curl -fsSL --max-time 30 "$REPO_RAW/engine/$f" -o "$STAGE/$f" || { ok=no; break; }
+  done
+  # A truncated or error page must never be installed as the engine.
+  if [ "$ok" = yes ] && "$PY" -c "import ast,sys; [ast.parse(open(p).read()) for p in sys.argv[1:]]" \
+       "$STAGE"/*.py 2>/dev/null; then
+    ENGINE_SRC="$STAGE"
+    echo "engine    : fetched the current engine from the repo"
+  else
+    echo "note: could not fetch the engine from the repo, using the copy in your vault." >&2
+  fi
+fi
+if [ -z "$ENGINE_SRC" ] && [ -f "$ENGINE/brain_mcp.py" ]; then
+  ENGINE_SRC="$ENGINE"
+  echo "engine    : using the copy in your vault"
+fi
+
+if [ -n "$ENGINE_SRC" ]; then
+  cp "$ENGINE_SRC"/*.py "$ENGINE_SRC/schema.sql" "$LOCAL_ENGINE/" 2>/dev/null || true
   # The engine defaults its vault to the folder ABOVE itself, which is wrong for
   # a local copy, so pin vault_path and db_path in the local config. Rewritten
-  # from the vault's own config so sections and ignore rules carry over.
-  "$PY" - "$ENGINE/brain.config.json" "$LOCAL_ENGINE/brain.config.json" "$MOUNT" "$DB" <<'CFG'
+  # from the source config so sections and ignore rules carry over.
+  "$PY" - "$ENGINE_SRC/brain.config.json" "$LOCAL_ENGINE/brain.config.json" "$MOUNT" "$DB" <<'CFG'
 import json, sys
 src, dst, vault, db = sys.argv[1:5]
 try:
@@ -324,10 +352,11 @@ cfg["db_path"] = db
 with open(dst, "w") as fh:
     json.dump(cfg, fh, indent=2)
 CFG
-  echo "engine    : copied to $LOCAL_ENGINE (runs even when the mount is down)"
+  echo "          : installed to $LOCAL_ENGINE (runs even when the mount is down)"
 else
-  echo "note: no engine on the mount yet, so $LOCAL_ENGINE may be stale or empty." >&2
+  echo "note: found no engine to install, so $LOCAL_ENGINE may be stale or empty." >&2
 fi
+rm -rf "$STAGE"
 
 cat > "$BIN/brain-mcp" <<LAUNCH
 #!/usr/bin/env bash
@@ -453,6 +482,6 @@ server (Claude Code and Hermes read it on next start).
 
 Check it any time:
   bash $0 --check
-  "$PY" "$ENGINE/brainctl.py" search "backups"
+  "$PY" "$LOCAL_ENGINE/brainctl.py" search "backups"
   systemctl --user list-timers | grep brain
 DONE
