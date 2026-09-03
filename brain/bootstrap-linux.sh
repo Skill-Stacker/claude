@@ -92,6 +92,17 @@ if [ "${1:-}" = "--check" ] || [ "${1:-}" = "-c" ]; then
   echo "  index database   : $([ -f "$DB" ] && echo yes || echo no)"
   echo "  launchers        : $([ -x "$BIN/brain-mcp" ] && echo yes || echo no)"
   echo "  local engine     : $([ -f "$LOCAL_ENGINE/brain_mcp.py" ] && echo "$LOCAL_ENGINE" || echo MISSING)"
+  # Will it all come back by itself after a reboot?
+  SVC="$(systemctl --user is-enabled brain-drive.service 2>/dev/null || true)"
+  TMR="$(systemctl --user is-enabled brain-index.timer 2>/dev/null || true)"
+  echo "  mount at startup : ${SVC:-not installed}"
+  echo "  index timer      : ${TMR:-not installed}"
+  if loginctl show-user "$USER" -p Linger 2>/dev/null | grep -q 'Linger=yes'; then
+    echo "  after reboot     : mounts at boot, no login needed (linger on)"
+  else
+    echo "  after reboot     : mounts once you log in (linger off)"
+    echo "  to mount at boot : sudo loginctl enable-linger $USER"
+  fi
   # Actually speak MCP to the server. This is what Claude Desktop does, so if it
   # fails here you get the real reason instead of "Server disconnected".
   if [ -x "$BIN/brain-mcp" ]; then
@@ -470,8 +481,10 @@ PY
 
 # Keep the mount alive when you are not logged in (best effort).
 if command -v loginctl >/dev/null 2>&1 && ! loginctl show-user "$USER" -p Linger 2>/dev/null | grep -q 'Linger=yes'; then
-  sudo -n loginctl enable-linger "$USER" 2>/dev/null \
-    || echo "(optional) to keep the mount up when logged out: sudo loginctl enable-linger $USER"
+  echo "Turning on 'linger' so the vault mounts at boot instead of waiting for you to"
+  echo "log in. Undo it any time with:  sudo loginctl disable-linger $USER"
+  sudo loginctl enable-linger "$USER" \
+    || echo "(skipped) to do it later:  sudo loginctl enable-linger $USER"
 fi
 
 cat <<DONE
