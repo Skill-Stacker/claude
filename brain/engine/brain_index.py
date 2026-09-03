@@ -345,6 +345,61 @@ def rebuild_fts(conn):
     return True
 
 
+DEFAULT_WORKERS = 16
+
+
+def _read_notes(vault_path, paths, verbose):
+    """Read and parse every note, concurrently.
+
+    A vault on a network mount (Google Drive through rclone) is latency bound,
+    not CPU bound: one file at a time means one round trip at a time, so a big
+    vault can take many minutes. build_note only opens, reads and parses, and
+    holds no shared state, so a thread pool turns that into concurrent round
+    trips. Local disk is unaffected. Set BRAIN_WORKERS=1 to force serial.
+    """
+    total = len(paths)
+    if verbose:
+        print("Reading %d notes from %s" % (total, vault_path))
+
+    try:
+        workers = int(os.environ.get("BRAIN_WORKERS") or DEFAULT_WORKERS)
+    except ValueError:
+        workers = DEFAULT_WORKERS
+    workers = max(1, min(workers, total or 1))
+
+    def read_one(path):
+        # One unreadable file (a Drive hiccup, an odd permission) must not throw
+        # away the whole pass.
+        try:
+            return build_note(vault_path, path)
+        except Exception as exc:
+            sys.stderr.write("skipped %s (%s)\n" % (path, exc))
+            return None
+
+    if workers > 1:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            return _drain(pool.map(read_one, paths), total, verbose)
+    return _drain((read_one(p) for p in paths), total, verbose)
+
+
+def _drain(produced, total, verbose):
+    """Collect the notes, showing progress so a slow mount never looks frozen."""
+    notes = []
+    done = 0
+    for note in produced:
+        done += 1
+        if note is not None:
+            notes.append(note)
+        if verbose and (done % 20 == 0 or done == total):
+            # stderr on purpose: stdout is a data channel for other callers.
+            sys.stderr.write("\r  read %d/%d" % (done, total))
+            sys.stderr.flush()
+    if verbose and total:
+        sys.stderr.write("\n")
+    return notes
+
+
 def index_vault(vault_path, db_path, verbose=True):
     vault_path = os.path.abspath(vault_path)
     if not os.path.isdir(vault_path):
@@ -355,11 +410,11 @@ def index_vault(vault_path, db_path, verbose=True):
 
     seen_paths = set()
     alias_map = {}   # normalized alias -> slug, for wikilink resolution
-    notes = []
 
-    for full_path in iter_markdown(vault_path, index_vault.ignore_dirs):
-        note = build_note(vault_path, full_path)
-        notes.append(note)
+    paths = list(iter_markdown(vault_path, index_vault.ignore_dirs))
+    notes = _read_notes(vault_path, paths, verbose)
+
+    for note in notes:
         seen_paths.add(note["path"])
         for alias in (note["slug"], note["stem"], note["title"]):
             if alias:

@@ -387,11 +387,17 @@ echo "timer     : brain-index.timer (every 30 minutes)"
 say "Build the search index once, now"
 
 if [ -f "$LOCAL_ENGINE/brainctl.py" ]; then
-  "$BIN/brain-index" || echo "(that reported a problem; the timer retries every 30 minutes)"
-  PYTHONDONTWRITEBYTECODE=1 BRAIN_DB="$DB" "$PY" "$LOCAL_ENGINE/brainctl.py" stats 2>/dev/null \
+  echo "This first pass reads every note out of Google Drive, so on a large vault it"
+  echo "runs for a few minutes. It reads many at once and prints a running count, so"
+  echo "you can watch it move. Later passes are much faster."
+  echo
+  # Deliberately NOT --quiet here: a silent multi minute step looks like a hang.
+  PYTHONDONTWRITEBYTECODE=1 "$PY" "$LOCAL_ENGINE/brainctl.py" index \
+    || echo "(that reported a problem; the timer retries every 30 minutes)"
+  PYTHONDONTWRITEBYTECODE=1 "$PY" "$LOCAL_ENGINE/brainctl.py" stats 2>/dev/null \
     || echo "(no stats yet; the timer will build it)"
 else
-  echo "Skipped: the engine is not on the mount yet."
+  echo "Skipped: no engine was copied (the mount had no engine folder)."
 fi
 
 # ---------------------------------------------------------------------------
