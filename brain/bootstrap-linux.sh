@@ -38,7 +38,8 @@ USER="${USER:-$(id -un)}"          # su and cron do not always set $USER
 BIN="$HOME/.local/bin"
 UNITS="$HOME/.config/systemd/user"
 DB="$HOME/Brain-index/brain.db"
-ENGINE="$MOUNT/engine"
+ENGINE="$MOUNT/engine"                    # the engine as shipped in the vault
+LOCAL_ENGINE="$HOME/.local/share/brain-engine"   # the copy we actually run
 
 STEP=0
 say() { STEP=$((STEP + 1)); printf '\n=== %d/6  %s ===\n' "$STEP" "$1"; }
@@ -89,6 +90,19 @@ if [ "${1:-}" = "--check" ] || [ "${1:-}" = "-c" ]; then
   echo "  engine on mount  : $([ -f "$ENGINE/brainctl.py" ] && echo yes || echo no)"
   echo "  index database   : $([ -f "$DB" ] && echo yes || echo no)"
   echo "  launchers        : $([ -x "$BIN/brain-mcp" ] && echo yes || echo no)"
+  echo "  local engine     : $([ -f "$LOCAL_ENGINE/brain_mcp.py" ] && echo "$LOCAL_ENGINE" || echo MISSING)"
+  # Actually speak MCP to the server. This is what Claude Desktop does, so if it
+  # fails here you get the real reason instead of "Server disconnected".
+  if [ -x "$BIN/brain-mcp" ]; then
+    MCPOUT="$(printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"check","version":"1"}}}' \
+      | "$BIN/brain-mcp" 2>&1)" || true
+    case "$MCPOUT" in
+      *'"serverInfo"'*) echo "  MCP handshake    : ok" ;;
+      '')              echo "  MCP handshake    : FAILED (server produced nothing and exited)" ;;
+      *)               echo "  MCP handshake    : FAILED"
+                       printf '%s\n' "$MCPOUT" | sed 's/^/      /' ;;
+    esac
+  fi
   exit 0
 fi
 case "${1:-}" in -h|--help) sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;; esac
@@ -284,23 +298,59 @@ while [ $i -lt 20 ] && [ ! -f "$ENGINE/brainctl.py" ]; do sleep 1; i=$((i + 1));
 # ---------------------------------------------------------------------------
 say "Install the launchers and the 30 minute index timer"
 
-mkdir -p "$BIN"
+mkdir -p "$BIN" "$LOCAL_ENGINE"
+
+# Run the engine from LOCAL disk, not from the Drive mount. Claude Desktop and
+# Cowork start their MCP servers when the app launches, which can easily be
+# before the rclone mount is up. A server whose .py file lives on the mount just
+# exits, and the client reports "Server disconnected / Connection closed".
+# The engine is code, so a local copy is cheap; the vault stays the source of
+# truth and is read through BRAIN_VAULT below.
+if [ -f "$ENGINE/brain_mcp.py" ]; then
+  cp "$ENGINE"/*.py "$ENGINE/schema.sql" "$LOCAL_ENGINE/" 2>/dev/null || true
+  # The engine defaults its vault to the folder ABOVE itself, which is wrong for
+  # a local copy, so pin vault_path and db_path in the local config. Rewritten
+  # from the vault's own config so sections and ignore rules carry over.
+  "$PY" - "$ENGINE/brain.config.json" "$LOCAL_ENGINE/brain.config.json" "$MOUNT" "$DB" <<'CFG'
+import json, sys
+src, dst, vault, db = sys.argv[1:5]
+try:
+    with open(src) as fh:
+        cfg = json.load(fh)
+except Exception:
+    cfg = {}
+cfg["vault_path"] = vault
+cfg["db_path"] = db
+with open(dst, "w") as fh:
+    json.dump(cfg, fh, indent=2)
+CFG
+  echo "engine    : copied to $LOCAL_ENGINE (runs even when the mount is down)"
+else
+  echo "note: no engine on the mount yet, so $LOCAL_ENGINE may be stale or empty." >&2
+fi
 
 cat > "$BIN/brain-mcp" <<LAUNCH
 #!/usr/bin/env bash
+# Never depends on the Drive mount being up: the code is local and the search
+# database is local. Only reading a note's full text needs the vault.
 export PYTHONDONTWRITEBYTECODE=1
-exec "$PY" "$ENGINE/brain_mcp.py" "\$@"
+export BRAIN_VAULT="\${BRAIN_VAULT:-$MOUNT}"
+export BRAIN_DB="\${BRAIN_DB:-$DB}"
+exec "$PY" "$LOCAL_ENGINE/brain_mcp.py" "\$@"
 LAUNCH
 chmod +x "$BIN/brain-mcp"
 
 cat > "$BIN/brain-index" <<LAUNCH
 #!/usr/bin/env bash
 export PYTHONDONTWRITEBYTECODE=1
+export BRAIN_VAULT="\${BRAIN_VAULT:-$MOUNT}"
+export BRAIN_DB="\${BRAIN_DB:-$DB}"
+# Indexing genuinely needs the vault, so skip quietly when it is not mounted.
 if command -v mountpoint >/dev/null 2>&1 && ! mountpoint -q "$MOUNT"; then
   echo "Brain vault not mounted at $MOUNT; skipping index." >&2
   exit 0
 fi
-exec "$PY" "$ENGINE/brainctl.py" index --quiet
+exec "$PY" "$LOCAL_ENGINE/brainctl.py" index --quiet
 LAUNCH
 chmod +x "$BIN/brain-index"
 
@@ -336,9 +386,9 @@ echo "timer     : brain-index.timer (every 30 minutes)"
 # ---------------------------------------------------------------------------
 say "Build the search index once, now"
 
-if [ -f "$ENGINE/brainctl.py" ]; then
+if [ -f "$LOCAL_ENGINE/brainctl.py" ]; then
   "$BIN/brain-index" || echo "(that reported a problem; the timer retries every 30 minutes)"
-  PYTHONDONTWRITEBYTECODE=1 "$PY" "$ENGINE/brainctl.py" stats 2>/dev/null \
+  PYTHONDONTWRITEBYTECODE=1 BRAIN_DB="$DB" "$PY" "$LOCAL_ENGINE/brainctl.py" stats 2>/dev/null \
     || echo "(no stats yet; the timer will build it)"
 else
   echo "Skipped: the engine is not on the mount yet."

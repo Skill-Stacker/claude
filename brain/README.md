@@ -41,6 +41,13 @@ bash ~/bootstrap-brain.sh
 The only thing you type is one Google sign in (rclone needs it, once). Nothing
 is uploaded; the database stays local at `~/Brain-index`. It is safe to re-run.
 
+The engine itself is copied to `~/.local/share/brain-engine` and run from there,
+not from the mount. MCP clients start their servers when the app launches, which
+is often before the Drive mount is up, and a server whose code lives on the
+mount just exits ("Server disconnected"). Running the code locally against the
+local database means search keeps working even with Drive offline; only reading
+a note's full text needs the mount.
+
 If something goes wrong, this reports the state of every piece and changes
 nothing:
 
